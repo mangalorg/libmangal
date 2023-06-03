@@ -1,9 +1,8 @@
 package libmangal
 
 import (
+	browser "github.com/EDDYCJY/fake-useragent"
 	"io"
-	"net/http"
-	"strings"
 )
 
 type Page struct {
@@ -16,25 +15,26 @@ type Page struct {
 	Data string
 
 	Headers map[string]string
+
+	Extension string
+
+	chapter *Chapter
 }
 
-func (p *Page) Reader(provider *Provider) (io.Reader, error) {
-	if p.Data != "" {
-		return strings.NewReader(p.Data), nil
+func (p *Page) fillDefaults() {
+	if p.Extension == "" {
+		p.Extension = "jpg"
 	}
 
-	request, _ := http.NewRequestWithContext(provider.client.context, http.MethodGet, p.Url, nil)
-
-	if p.Headers != nil {
-		for key, value := range p.Headers {
-			request.Header.Set(key, value)
-		}
+	if p.Headers == nil {
+		p.Headers = make(map[string]string)
+		p.Headers["Referer"] = p.chapter.Url
+		p.Headers["User-Agent"] = browser.Computer()
+		p.Headers["Accept"] = "image/webp,image/apng,image/*,*/*;q=0.8"
 	}
+}
 
-	response, err := provider.client.httpClient.Do(request)
-	if err != nil {
-		return nil, err
-	}
-
-	return response.Body, nil
+type downloadedPage struct {
+	*Page
+	io.Reader
 }

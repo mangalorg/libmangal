@@ -12,14 +12,18 @@ type Options struct {
 	FS         afero.Fs
 }
 
-func NewState(options Options) *lua.LState {
-	if options.FS == nil {
-		panic("FS is nil")
+func (o *Options) fillDefaults() {
+	if o.HTTPClient == nil {
+		o.HTTPClient = &http.Client{}
 	}
 
-	if options.HTTPClient == nil {
-		panic("HTTPClient is nil")
+	if o.FS == nil {
+		o.FS = afero.NewMemMapFs()
 	}
+}
+
+func NewState(options Options) *lua.LState {
+	options.fillDefaults()
 
 	libs := []lua.LGFunction{
 		lua.OpenBase,

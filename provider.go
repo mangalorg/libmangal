@@ -4,11 +4,16 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/metafates/libmangal/vm"
+	"github.com/spf13/afero"
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
-	"path/filepath"
-
+	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v3"
+	"io"
+	"net/http"
+	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 type ProviderHandle struct {
@@ -28,15 +33,6 @@ func (p ProviderHandle) Provider() (*Provider, error) {
 	provider := &Provider{
 		path:   p.path,
 		client: p.client,
-	}
-
-	for _, load := range []func() error{
-		provider.loadInfo,
-		provider.loadFunctions,
-	} {
-		if err := load(); err != nil {
-			return nil, err
-		}
 	}
 
 	if err := provider.loadInfo(); err != nil {
@@ -66,7 +62,7 @@ func (p *Provider) Info() ProviderInfo {
 }
 
 func (p *Provider) loadInfo() error {
-	file, err := p.client.fs.Open(p.path)
+	file, err := p.client.options.FS.Open(p.path)
 	if err != nil {
 		return err
 	}
@@ -108,16 +104,20 @@ func (p *Provider) loadInfo() error {
 	return nil
 }
 
-func (p *Provider) loadFunctions() error {
+func (p *Provider) Load() error {
+	if p.state != nil {
+		return fmt.Errorf("already loaded")
+	}
+
 	state := vm.NewState(vm.Options{
-		HTTPClient: p.client.httpClient,
-		FS:         p.client.fs,
+		HTTPClient: p.client.options.HTTPClient,
+		FS:         p.client.options.FS,
 	})
 	defer func() {
 		p.state = state
 	}()
 
-	file, err := p.client.fs.Open(p.path)
+	file, err := p.client.options.FS.Open(p.path)
 	if err != nil {
 		return err
 	}
@@ -152,21 +152,20 @@ func (p *Provider) loadFunctions() error {
 		chapterPages  = "ChapterPages"
 	)
 
-	var (
-		hasSearch,
-		hasChapters bool
-	)
+	var ok bool
+	p.searchMangas, ok = state.GetGlobal(searchMangas).(*lua.LFunction)
+	if !ok {
+		return fmt.Errorf("missing function %q", searchMangas)
+	}
 
-	p.searchMangas, hasSearch = state.GetGlobal(searchMangas).(*lua.LFunction)
-	p.mangaChapters, hasChapters = state.GetGlobal(mangaChapters).(*lua.LFunction)
-	p.chapterPages, _ = state.GetGlobal(chapterPages).(*lua.LFunction)
+	p.mangaChapters, ok = state.GetGlobal(mangaChapters).(*lua.LFunction)
+	if !ok {
+		return fmt.Errorf("missing function %q", mangaChapters)
+	}
 
-	// validate
-	// at least one of searchMangas or mangaChapters must be defined
-	// chapterPages is optional
-	if !(hasSearch || hasChapters) {
-		// TODO: add more descriptive error
-		return fmt.Errorf("missing function")
+	p.chapterPages, ok = state.GetGlobal(chapterPages).(*lua.LFunction)
+	if !ok {
+		return fmt.Errorf("missing function %q", chapterPages)
 	}
 
 	return nil
@@ -250,6 +249,12 @@ func (p *Provider) MangaChapters(manga *Manga) ([]*Chapter, error) {
 		}
 
 		chapter.table = table
+		chapter.manga = manga
+
+		if chapter.Number == "" {
+			chapter.Number = strconv.Itoa(i + 1)
+		}
+
 		chapters[i] = &chapter
 	}
 
@@ -287,12 +292,177 @@ func (p *Provider) ChapterPages(chapter *Chapter) ([]*Page, error) {
 			return nil, err
 		}
 
-		if page.Url == "" {
-			return nil, fmt.Errorf("page url must be non empty")
+		if page.Url == "" && page.Data == "" {
+			return nil, fmt.Errorf("either page url or data must be non empty")
 		}
+
+		page.chapter = chapter
+		page.fillDefaults()
 
 		pages[i] = &page
 	}
 
 	return pages, nil
+}
+
+type DownloadOptions struct {
+	Format         Format
+	CreateMangaDir bool
+	SkipIfExists   bool
+}
+
+func (p *Provider) DownloadChapter(chapter *Chapter, dir string, options DownloadOptions) error {
+	if !options.Format.IsAFormat() {
+		return fmt.Errorf("unsupported format")
+	}
+
+	var path string
+
+	if options.CreateMangaDir {
+		path = filepath.Join(dir, p.client.options.MangaNameTemplate(chapter.manga.nameData()))
+		err := p.client.options.FS.MkdirAll(path, 0755)
+		if err != nil {
+			return err
+		}
+	} else {
+		path = dir
+	}
+
+	path = filepath.Join(path, p.client.options.ChapterNameTemplate(chapter.nameData()))
+
+	var isDir bool
+	switch options.Format {
+	case FormatPDF:
+		path += ".pdf"
+	case FormatCBZ:
+		path += ".cbz"
+	case FormatImages:
+		isDir = true
+	}
+
+	exists, err := afero.Exists(p.client.options.FS, path)
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		if options.SkipIfExists {
+			return nil
+		}
+
+		if isDir {
+			err = p.client.options.FS.RemoveAll(path)
+		} else {
+			err = p.client.options.FS.Remove(path)
+		}
+
+		if err != nil {
+			return err
+		}
+	}
+
+	switch options.Format {
+	case FormatPDF:
+		err = p.downloadChapterPDF(chapter, path)
+	case FormatCBZ:
+		err = p.downloadChapterCBZ(chapter, path)
+	case FormatImages:
+		err = p.downloadChapterImages(chapter, path)
+	}
+
+	return err
+}
+
+func (p *Provider) downloadChapterPDF(chapter *Chapter, path string) error {
+	panic("not implemented")
+}
+
+func (p *Provider) downloadChapterCBZ(chapter *Chapter, path string) error {
+	panic("not implemented")
+}
+
+func (p *Provider) downloadChapterImages(chapter *Chapter, path string) error {
+	pages, err := p.ChapterPages(chapter)
+	if err != nil {
+		return err
+	}
+
+	g, _ := errgroup.WithContext(p.client.context)
+
+	var downloadedPages = make([]downloadedPage, len(pages))
+
+	for i, page := range pages {
+		i, page := i, page
+		g.Go(func() error {
+			var reader io.Reader
+			reader, err = p.pageReader(page)
+
+			if err != nil {
+				return err
+			}
+
+			downloadedPages[i] = downloadedPage{
+				Page:   page,
+				Reader: reader,
+			}
+
+			return nil
+		})
+	}
+
+	if err = g.Wait(); err != nil {
+		return err
+	}
+
+	// create directory
+	err = p.client.options.FS.MkdirAll(path, 0755)
+	if err != nil {
+		return err
+	}
+
+	for i, page := range downloadedPages {
+		if page.Reader == nil {
+			return fmt.Errorf("reader %d is nil", i)
+		}
+
+		var file afero.File
+		file, err = p.client.options.FS.Create(filepath.Join(path, fmt.Sprintf("%03d.%s", i+1, page.Extension)))
+		if err != nil {
+			return err
+		}
+
+		_, err = io.Copy(file, page)
+		if err != nil {
+			return err
+		}
+
+		_ = file.Close()
+	}
+
+	return nil
+}
+
+func (p *Provider) pageReader(page *Page) (io.Reader, error) {
+	if page.Data != "" {
+		return strings.NewReader(page.Data), nil
+	}
+
+	request, _ := http.NewRequestWithContext(p.client.context, http.MethodGet, page.Url, nil)
+
+	if page.Headers != nil {
+		for key, value := range page.Headers {
+			request.Header.Set(key, value)
+		}
+	}
+
+	response, err := p.client.options.HTTPClient.Do(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", response.StatusCode)
+	}
+
+	return response.Body, nil
 }

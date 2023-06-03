@@ -1,0 +1,3 @@
+package libmangal
+
+const invalidPathChars = `<>:"/\|?*`
