@@ -1,8 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"github.com/metafates/libmangal"
+	"github.com/mangalorg/libmangal"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"os"
@@ -48,7 +49,7 @@ var runCmd = &cobra.Command{
 		}
 
 		if query, _ := cmd.Flags().GetString("query"); query != "" {
-			mangas, err := provider.SearchMangas(query)
+			mangas, err := provider.SearchMangas(context.Background(), query)
 			if err != nil {
 				return err
 			}
@@ -72,7 +73,7 @@ var runCmd = &cobra.Command{
 				}
 
 				manga := mangas[mangaIndex]
-				chapters, err := provider.MangaChapters(manga)
+				chapters, err := provider.MangaChapters(context.Background(), manga)
 				if err != nil {
 					return err
 				}
@@ -102,7 +103,7 @@ var runCmd = &cobra.Command{
 							return err
 						}
 
-						err = provider.DownloadChapter(chapter, ".", libmangal.DownloadOptions{
+						err = provider.DownloadChapter(context.Background(), chapter, ".", libmangal.DownloadOptions{
 							Format:         format,
 							CreateMangaDir: true,
 							SkipIfExists:   true,
@@ -111,7 +112,7 @@ var runCmd = &cobra.Command{
 							return err
 						}
 					} else {
-						pages, err := provider.ChapterPages(chapter)
+						pages, err := provider.ChapterPages(context.Background(), chapter)
 						if err != nil {
 							return err
 						}

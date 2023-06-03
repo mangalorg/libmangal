@@ -1,7 +1,7 @@
 package regexp
 
 import (
-	luadoc "github.com/metafates/libmangal/vm/doc"
+	luadoc "github.com/mangalorg/libmangal/vm/doc"
 	"github.com/mvdan/xurls"
 	lua "github.com/yuin/gopher-lua"
 	"regexp"

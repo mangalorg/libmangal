@@ -1,7 +1,7 @@
 package js
 
 import (
-	"github.com/metafates/libmangal/vm/util"
+	"github.com/mangalorg/libmangal/vm/util"
 	"github.com/robertkrimen/otto"
 	lua "github.com/yuin/gopher-lua"
 )

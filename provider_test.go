@@ -1,6 +1,7 @@
 package libmangal
 
 import (
+	"context"
 	. "github.com/smartystreets/goconvey/convey"
 	"testing"
 )
@@ -52,7 +53,7 @@ func TestProvider_SearchMangas(t *testing.T) {
 
 		Convey("When SearchMangas() is called", func() {
 			const query = "naruto"
-			mangas, err := provider.SearchMangas(query)
+			mangas, err := provider.SearchMangas(context.Background(), query)
 
 			Convey("Then it should return a list of mangas", func() {
 				So(err, ShouldBeNil)
@@ -73,14 +74,14 @@ func TestProvider_MangaChapters(t *testing.T) {
 		provider, err := handle.Provider()
 		So(err, ShouldBeNil)
 
-		mangas, err := provider.SearchMangas("naruto")
+		mangas, err := provider.SearchMangas(context.Background(), "naruto")
 		So(err, ShouldBeNil)
 		So(len(mangas), ShouldEqual, 1)
 
 		manga := mangas[0]
 
 		Convey("When MangaChapters() is called", func() {
-			chapters, err := provider.MangaChapters(manga)
+			chapters, err := provider.MangaChapters(context.Background(), manga)
 
 			Convey("Then it should return a list of chapters", func() {
 				So(err, ShouldBeNil)
@@ -101,20 +102,20 @@ func TestProvider_ChapterPages(t *testing.T) {
 		provider, err := handle.Provider()
 		So(err, ShouldBeNil)
 
-		mangas, err := provider.SearchMangas("naruto")
+		mangas, err := provider.SearchMangas(context.Background(), "naruto")
 		So(err, ShouldBeNil)
 		So(len(mangas), ShouldEqual, 1)
 
 		manga := mangas[0]
 
-		chapters, err := provider.MangaChapters(manga)
+		chapters, err := provider.MangaChapters(context.Background(), manga)
 		So(err, ShouldBeNil)
 		So(len(chapters), ShouldEqual, 1)
 
 		chapter := chapters[0]
 
 		Convey("When ChapterPages() is called", func() {
-			pages, err := provider.ChapterPages(chapter)
+			pages, err := provider.ChapterPages(context.Background(), chapter)
 
 			Convey("Then it should return a list of pages", func() {
 				So(err, ShouldBeNil)

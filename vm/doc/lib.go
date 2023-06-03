@@ -2,7 +2,7 @@ package luadoc
 
 import (
 	"fmt"
-	"github.com/metafates/libmangal/vm/util"
+	"github.com/mangalorg/libmangal/vm/util"
 	"github.com/samber/lo"
 	lua "github.com/yuin/gopher-lua"
 	"strings"

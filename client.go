@@ -1,7 +1,6 @@
 package libmangal
 
 import (
-	"context"
 	"fmt"
 	"github.com/philippgille/gokv"
 	"github.com/philippgille/gokv/syncmap"
@@ -31,6 +30,8 @@ type Options struct {
 
 	ChapterNameTemplate func(ChapterNameData) string
 	MangaNameTemplate   func(MangaNameData) string
+
+	Progress func(string)
 
 	// TODO: add anilist options
 }
@@ -73,13 +74,14 @@ func (o *Options) fillDefaults() {
 			return sanitizePath(data.Title)
 		}
 	}
+
+	if o.Progress == nil {
+		o.Progress = func(string) {}
+	}
 }
 
 type Client struct {
 	options *Options
-
-	context       context.Context
-	contextCancel context.CancelFunc
 }
 
 func sanitizePath(path string) string {
@@ -98,14 +100,7 @@ func NewClient(options Options) *Client {
 		options: &options,
 	}
 
-	client.context, client.contextCancel = context.WithCancel(context.Background())
-
 	return client
-}
-
-func (c *Client) Cancel() {
-	c.contextCancel()
-	c.context, c.contextCancel = context.WithCancel(context.Background())
 }
 
 func (c *Client) ProviderHandleFromPath(path string) ProviderHandle {

@@ -2,7 +2,7 @@ package sha512
 
 import (
 	"crypto/sha512"
-	luadoc "github.com/metafates/libmangal/vm/doc"
+	luadoc "github.com/mangalorg/libmangal/vm/doc"
 	lua "github.com/yuin/gopher-lua"
 )
 

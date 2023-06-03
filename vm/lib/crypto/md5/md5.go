@@ -2,7 +2,7 @@ package md5
 
 import (
 	"crypto/md5"
-	luadoc "github.com/metafates/libmangal/vm/doc"
+	luadoc "github.com/mangalorg/libmangal/vm/doc"
 	lua "github.com/yuin/gopher-lua"
 )
 

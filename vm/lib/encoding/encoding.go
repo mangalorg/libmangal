@@ -1,9 +1,9 @@
 package encoding
 
 import (
-	luadoc "github.com/metafates/libmangal/vm/doc"
-	"github.com/metafates/libmangal/vm/lib/encoding/base64"
-	"github.com/metafates/libmangal/vm/lib/encoding/json"
+	luadoc "github.com/mangalorg/libmangal/vm/doc"
+	"github.com/mangalorg/libmangal/vm/lib/encoding/base64"
+	"github.com/mangalorg/libmangal/vm/lib/encoding/json"
 	lua "github.com/yuin/gopher-lua"
 )
 

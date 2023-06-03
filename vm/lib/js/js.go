@@ -1,7 +1,7 @@
 package js
 
 import (
-	luadoc "github.com/metafates/libmangal/vm/doc"
+	luadoc "github.com/mangalorg/libmangal/vm/doc"
 )
 
 func Lib() *luadoc.Lib {

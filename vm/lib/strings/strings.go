@@ -1,8 +1,8 @@
 package strings
 
 import (
-	luadoc "github.com/metafates/libmangal/vm/doc"
-	"github.com/metafates/libmangal/vm/util"
+	luadoc "github.com/mangalorg/libmangal/vm/doc"
+	"github.com/mangalorg/libmangal/vm/util"
 	lua "github.com/yuin/gopher-lua"
 	"strings"
 )

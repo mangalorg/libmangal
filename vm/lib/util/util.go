@@ -1,8 +1,8 @@
 package util
 
 import (
-	luadoc "github.com/metafates/libmangal/vm/doc"
-	"github.com/metafates/libmangal/vm/util"
+	luadoc "github.com/mangalorg/libmangal/vm/doc"
+	"github.com/mangalorg/libmangal/vm/util"
 	"github.com/samber/lo"
 	lua "github.com/yuin/gopher-lua"
 	"golang.org/x/exp/slices"

@@ -1,7 +1,7 @@
 package vm
 
 import (
-	"github.com/metafates/libmangal/vm/lib"
+	"github.com/mangalorg/libmangal/vm/lib"
 	"github.com/spf13/afero"
 	lua "github.com/yuin/gopher-lua"
 	"net/http"

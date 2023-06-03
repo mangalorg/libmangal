@@ -3,7 +3,7 @@ package json
 import (
 	"encoding/json"
 	"errors"
-	luadoc "github.com/metafates/libmangal/vm/doc"
+	luadoc "github.com/mangalorg/libmangal/vm/doc"
 	lua "github.com/yuin/gopher-lua"
 )
 

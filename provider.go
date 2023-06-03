@@ -2,8 +2,10 @@ package libmangal
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"github.com/metafates/libmangal/vm"
+	"github.com/mangalorg/libmangal/vm"
+	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/spf13/afero"
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
@@ -171,7 +173,8 @@ func (p *Provider) Load() error {
 	return nil
 }
 
-func (p *Provider) SearchMangas(query string) ([]*Manga, error) {
+func (p *Provider) SearchMangas(ctx context.Context, query string) ([]*Manga, error) {
+	p.state.SetContext(ctx)
 	err := p.state.CallByParam(lua.P{
 		Fn:      p.searchMangas,
 		NRet:    1,
@@ -213,7 +216,8 @@ func (p *Provider) SearchMangas(query string) ([]*Manga, error) {
 	return mangas, nil
 }
 
-func (p *Provider) MangaChapters(manga *Manga) ([]*Chapter, error) {
+func (p *Provider) MangaChapters(ctx context.Context, manga *Manga) ([]*Chapter, error) {
+	p.state.SetContext(ctx)
 	err := p.state.CallByParam(lua.P{
 		Fn:      p.mangaChapters,
 		NRet:    1,
@@ -261,7 +265,8 @@ func (p *Provider) MangaChapters(manga *Manga) ([]*Chapter, error) {
 	return chapters, nil
 }
 
-func (p *Provider) ChapterPages(chapter *Chapter) ([]*Page, error) {
+func (p *Provider) ChapterPages(ctx context.Context, chapter *Chapter) ([]*Page, error) {
+	p.state.SetContext(ctx)
 	err := p.state.CallByParam(lua.P{
 		Fn:      p.chapterPages,
 		NRet:    1,
@@ -311,7 +316,12 @@ type DownloadOptions struct {
 	SkipIfExists   bool
 }
 
-func (p *Provider) DownloadChapter(chapter *Chapter, dir string, options DownloadOptions) error {
+func (p *Provider) DownloadChapter(
+	ctx context.Context,
+	chapter *Chapter,
+	dir string,
+	options DownloadOptions,
+) error {
 	if !options.Format.IsAFormat() {
 		return fmt.Errorf("unsupported format")
 	}
@@ -361,47 +371,43 @@ func (p *Provider) DownloadChapter(chapter *Chapter, dir string, options Downloa
 		}
 	}
 
+	pages, err := p.ChapterPages(ctx, chapter)
+	if err != nil {
+		return err
+	}
+
+	downloadedPages, err := p.downloadPages(ctx, pages)
+	if err != nil {
+		return err
+	}
+
 	switch options.Format {
 	case FormatPDF:
-		err = p.downloadChapterPDF(chapter, path)
+		err = p.savePDF(downloadedPages, path)
 	case FormatCBZ:
-		err = p.downloadChapterCBZ(chapter, path)
+		err = p.saveCBZ(downloadedPages, path)
 	case FormatImages:
-		err = p.downloadChapterImages(chapter, path)
+		err = p.saveImages(downloadedPages, path)
 	}
 
 	return err
 }
 
-func (p *Provider) downloadChapterPDF(chapter *Chapter, path string) error {
-	panic("not implemented")
-}
+func (p *Provider) downloadPages(ctx context.Context, pages []*Page) ([]*downloadedPage, error) {
+	g, _ := errgroup.WithContext(ctx)
 
-func (p *Provider) downloadChapterCBZ(chapter *Chapter, path string) error {
-	panic("not implemented")
-}
-
-func (p *Provider) downloadChapterImages(chapter *Chapter, path string) error {
-	pages, err := p.ChapterPages(chapter)
-	if err != nil {
-		return err
-	}
-
-	g, _ := errgroup.WithContext(p.client.context)
-
-	var downloadedPages = make([]downloadedPage, len(pages))
+	var downloadedPages = make([]*downloadedPage, len(pages))
 
 	for i, page := range pages {
 		i, page := i, page
 		g.Go(func() error {
-			var reader io.Reader
-			reader, err = p.pageReader(page)
+			reader, err := p.pageReader(ctx, page)
 
 			if err != nil {
 				return err
 			}
 
-			downloadedPages[i] = downloadedPage{
+			downloadedPages[i] = &downloadedPage{
 				Page:   page,
 				Reader: reader,
 			}
@@ -410,23 +416,58 @@ func (p *Provider) downloadChapterImages(chapter *Chapter, path string) error {
 		})
 	}
 
-	if err = g.Wait(); err != nil {
-		return err
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
-	// create directory
-	err = p.client.options.FS.MkdirAll(path, 0755)
+	return downloadedPages, nil
+}
+
+func (p *Provider) savePDF(
+	pages []*downloadedPage,
+	path string,
+) error {
+	var file afero.File
+	file, err := p.client.options.FS.Create(path)
 	if err != nil {
 		return err
 	}
 
-	for i, page := range downloadedPages {
+	defer file.Close()
+
+	// convert to readers
+	var images = make([]io.Reader, len(pages))
+	for i, page := range pages {
+		images[i] = page.Reader
+	}
+
+	return api.ImportImages(nil, file, images, nil, nil)
+}
+
+func (p *Provider) saveCBZ(
+	pages []*downloadedPage,
+	path string,
+) error {
+	panic("not implemented")
+}
+
+func (p *Provider) saveImages(
+	pages []*downloadedPage,
+	path string,
+) error {
+	err := p.client.options.FS.MkdirAll(path, 0755)
+	if err != nil {
+		return err
+	}
+
+	for i, page := range pages {
 		if page.Reader == nil {
+			// this should not occur, but just for the safety
 			return fmt.Errorf("reader %d is nil", i)
 		}
 
 		var file afero.File
-		file, err = p.client.options.FS.Create(filepath.Join(path, fmt.Sprintf("%03d.%s", i+1, page.Extension)))
+		file, err = p.client.options.FS.Create(filepath.Join(path, fmt.Sprintf("%04d.%s", i+1, page.Extension)))
 		if err != nil {
 			return err
 		}
@@ -442,12 +483,12 @@ func (p *Provider) downloadChapterImages(chapter *Chapter, path string) error {
 	return nil
 }
 
-func (p *Provider) pageReader(page *Page) (io.Reader, error) {
+func (p *Provider) pageReader(ctx context.Context, page *Page) (io.Reader, error) {
 	if page.Data != "" {
 		return strings.NewReader(page.Data), nil
 	}
 
-	request, _ := http.NewRequestWithContext(p.client.context, http.MethodGet, page.Url, nil)
+	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, page.Url, nil)
 
 	if page.Headers != nil {
 		for key, value := range page.Headers {
@@ -460,9 +501,25 @@ func (p *Provider) pageReader(page *Page) (io.Reader, error) {
 		return nil, err
 	}
 
+	defer response.Body.Close()
+
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", response.StatusCode)
 	}
 
-	return response.Body, nil
+	var buffer []byte
+
+	// check content length
+	if response.ContentLength > 0 {
+		buffer = make([]byte, response.ContentLength)
+		_, err = io.ReadFull(response.Body, buffer)
+	} else {
+		buffer, err = io.ReadAll(response.Body)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes.NewReader(buffer), nil
 }
