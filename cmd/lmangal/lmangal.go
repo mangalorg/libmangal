@@ -11,6 +11,13 @@ import (
 	"os"
 )
 
+var client = libmangal.NewClient(libmangal.ClientOptions{
+	FS: afero.NewOsFs(),
+	Log: func(s string) {
+		fmt.Println(s)
+	},
+})
+
 var rootCmd = &cobra.Command{
 	Use:   "lmangal",
 	Short: "lmangal is a command line tool for libmangal",
@@ -37,8 +44,6 @@ var runCmd = &cobra.Command{
 	Short: "Run a provider",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := libmangal.NewClient(libmangal.Options{})
-
 		handle, err := client.ProviderHandleFromPath(args[0])
 		if err != nil {
 			return err
@@ -65,7 +70,7 @@ var runCmd = &cobra.Command{
 
 			if list {
 				for _, manga := range mangas {
-					fmt.Printf("%v\n", *manga)
+					fmt.Println(manga)
 				}
 			}
 
@@ -87,7 +92,7 @@ var runCmd = &cobra.Command{
 
 				if list {
 					for _, chapter := range chapters {
-						fmt.Printf("%v\n", *chapter)
+						fmt.Println(chapter)
 					}
 				}
 
@@ -140,7 +145,7 @@ var runCmd = &cobra.Command{
 
 						if list {
 							for _, page := range pages {
-								fmt.Printf("%v\n", *page)
+								fmt.Println(page)
 							}
 						}
 					}
@@ -161,10 +166,6 @@ var probeCmd = &cobra.Command{
 	Short: "Probe a provider",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := libmangal.NewClient(libmangal.Options{
-			FS: afero.NewOsFs(),
-		})
-
 		handle, err := client.ProviderHandleFromPath(args[0])
 		if err != nil {
 			return err
@@ -201,6 +202,48 @@ var docCmd = &cobra.Command{
 		doc := lib.Lib(vm.NewState(vm.Options{}), lib.Options{}).LuaDoc()
 
 		fmt.Println(doc)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(anilistCmd)
+}
+
+var anilistCmd = &cobra.Command{
+	Use:   "anilist",
+	Short: "Anilist related commands",
+}
+
+func init() {
+	anilistCmd.AddCommand(anilistSearchCmd)
+	anilistSearchCmd.Flags().BoolP("closest", "c", false, "Get the closest match")
+}
+
+var anilistSearchCmd = &cobra.Command{
+	Use:   "search <query>",
+	Short: "Search for an anime",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if cmd.Flag("closest").Changed {
+			manga, err := client.AnilistFindClosestManga(context.Background(), args[0])
+			if err != nil {
+				return err
+			}
+
+			fmt.Println(manga)
+			return nil
+		}
+
+		mangas, err := client.AnilistSearchManga(context.Background(), args[0])
+		if err != nil {
+			return err
+		}
+
+		for _, manga := range mangas {
+			fmt.Println(manga)
+		}
+
+		return nil
 	},
 }
 

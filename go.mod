@@ -16,6 +16,7 @@ require (
 	github.com/andybalholm/cascadia v1.3.1 // indirect
 	github.com/cixtor/readability v1.0.0 // indirect
 	github.com/cjoudrey/gluahttp v0.0.0-20201111170219-25003d9adfa9 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/hhrutter/lzw v1.0.0 // indirect
 	github.com/hhrutter/tiff v1.0.0 // indirect

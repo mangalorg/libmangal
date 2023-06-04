@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-var defaultClient = NewClient(Options{
+var defaultClient = NewClient(ClientOptions{
 	ProvidersPaths: []string{"./testdata/provider.lua"},
 })
 

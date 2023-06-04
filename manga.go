@@ -20,6 +20,10 @@ type Manga struct {
 	table *lua.LTable
 }
 
+func (m *Manga) String() string {
+	return m.Title
+}
+
 func (m *Manga) validate() error {
 	if m.Title == "" {
 		return errManga(fmt.Errorf("title must be non-empty"))

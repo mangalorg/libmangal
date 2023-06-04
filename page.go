@@ -31,6 +31,14 @@ type Page struct {
 	chapter *Chapter
 }
 
+func (p *Page) String() string {
+	if p.Url != "" {
+		return p.Url
+	}
+
+	return "<BINARY>"
+}
+
 func (p *Page) validate() error {
 	if p.Url == "" && p.Data == "" {
 		return errPage(fmt.Errorf("either page url or data must be non empty"))

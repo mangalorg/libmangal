@@ -19,6 +19,10 @@ type Chapter struct {
 	manga *Manga
 }
 
+func (c *Chapter) String() string {
+	return c.Title
+}
+
 func (c *Chapter) validate() error {
 	if c.Title == "" {
 		return errChapter(fmt.Errorf("title must be non-empty"))

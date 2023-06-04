@@ -15,23 +15,21 @@ type DownloadOptions struct {
 
 type ReadOptions struct {
 	Format Format
-	// TODO
-	SaveHistory bool
 }
 
-type Options struct {
+type ClientOptions struct {
 	HTTPClient *http.Client
 	FS         afero.Fs
 
 	ChapterNameTemplate func(ChapterNameData) string
 	MangaNameTemplate   func(MangaNameData) string
 
-	Progress func(string)
+	Log func(string)
 
 	// TODO: add anilist options
 }
 
-func (o *Options) fillDefaults() {
+func (o *ClientOptions) fillDefaults() {
 	if o.HTTPClient == nil {
 		o.HTTPClient = &http.Client{}
 	}
@@ -66,7 +64,7 @@ func (o *Options) fillDefaults() {
 		}
 	}
 
-	if o.Progress == nil {
-		o.Progress = func(string) {}
+	if o.Log == nil {
+		o.Log = func(string) {}
 	}
 }

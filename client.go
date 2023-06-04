@@ -8,7 +8,7 @@ import (
 )
 
 type Client struct {
-	options *Options
+	options *ClientOptions
 }
 
 func sanitizePath(path string) string {
@@ -20,7 +20,7 @@ func sanitizePath(path string) string {
 	return regexp.MustCompile(`_+`).ReplaceAllString(path, "_")
 }
 
-func NewClient(options Options) *Client {
+func NewClient(options ClientOptions) *Client {
 	options.fillDefaults()
 
 	client := &Client{
