@@ -1,9 +1,19 @@
 package libmangal
 
 import (
+	"fmt"
 	browser "github.com/EDDYCJY/fake-useragent"
+	"github.com/pkg/errors"
 	"io"
+	"net/url"
+	"regexp"
 )
+
+var fileExtensionRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.]*[a-zA-Z0-9]$`)
+
+func errPage(err error) error {
+	return errors.Wrap(err, "page")
+}
 
 type Page struct {
 	// Url is the url of the page image
@@ -19,6 +29,26 @@ type Page struct {
 	Extension string
 
 	chapter *Chapter
+}
+
+func (p *Page) validate() error {
+	if p.Url == "" && p.Data == "" {
+		return errPage(fmt.Errorf("either page url or data must be non empty"))
+	}
+
+	if p.Url != "" {
+		if _, err := url.Parse(p.Url); err != nil {
+			return errPage(err)
+		}
+	}
+
+	if p.Extension != "" {
+		if !fileExtensionRegex.MatchString(p.Extension) {
+			return errPage(fmt.Errorf("invalid extension: %s", p.Extension))
+		}
+	}
+
+	return nil
 }
 
 func (p *Page) fillDefaults() {

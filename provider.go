@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"github.com/mangalorg/libmangal/vm"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/philippgille/gokv"
+	"github.com/philippgille/gokv/syncmap"
+	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/afero"
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
@@ -31,10 +34,15 @@ func (p ProviderHandle) Filename() string {
 	return filepath.Base(p.path)
 }
 
-func (p ProviderHandle) Provider() (*Provider, error) {
+func (p ProviderHandle) Provider(httpStore gokv.Store) (*Provider, error) {
+	if httpStore == nil {
+		httpStore = syncmap.NewStore(syncmap.DefaultOptions)
+	}
+
 	provider := &Provider{
-		path:   p.path,
-		client: p.client,
+		path:      p.path,
+		client:    p.client,
+		httpStore: httpStore,
 	}
 
 	if err := provider.loadInfo(); err != nil {
@@ -54,6 +62,8 @@ type Provider struct {
 	info   ProviderInfo
 	path   string
 	client *Client
+
+	httpStore gokv.Store
 
 	searchMangas, mangaChapters, chapterPages *lua.LFunction
 	state                                     *lua.LState
@@ -106,13 +116,14 @@ func (p *Provider) loadInfo() error {
 	return nil
 }
 
-func (p *Provider) Load() error {
+func (p *Provider) Load(ctx context.Context) error {
 	if p.state != nil {
 		return fmt.Errorf("already loaded")
 	}
 
 	state := vm.NewState(vm.Options{
 		HTTPClient: p.client.options.HTTPClient,
+		HTTPStore:  p.httpStore,
 		FS:         p.client.options.FS,
 	})
 	defer func() {
@@ -133,6 +144,7 @@ func (p *Provider) Load() error {
 		return fmt.Errorf("not a file")
 	}
 
+	state.SetContext(ctx)
 	lfunc, err := state.Load(file, filepath.Base(p.path))
 	if err != nil {
 		return err
@@ -173,24 +185,40 @@ func (p *Provider) Load() error {
 	return nil
 }
 
-func (p *Provider) SearchMangas(ctx context.Context, query string) ([]*Manga, error) {
+func (p *Provider) evalFunction(
+	ctx context.Context,
+	fn *lua.LFunction,
+	input lua.LValue,
+) (output []lua.LValue, err error) {
 	p.state.SetContext(ctx)
-	err := p.state.CallByParam(lua.P{
-		Fn:      p.searchMangas,
+	err = p.state.CallByParam(lua.P{
+		Fn:      fn,
 		NRet:    1,
 		Protect: true,
-	}, lua.LString(query))
+	}, input)
 
 	if err != nil {
 		return nil, err
 	}
 
-	list := p.state.CheckTable(-1)
+	p.
+		state.
+		CheckTable(-1).
+		ForEach(func(_, value lua.LValue) {
+			output = append(output, value)
+		})
 
-	var values []lua.LValue
-	list.ForEach(func(_ lua.LValue, value lua.LValue) {
-		values = append(values, value)
-	})
+	return
+}
+
+func (p *Provider) SearchMangas(
+	ctx context.Context,
+	query string,
+) ([]*Manga, error) {
+	values, err := p.evalFunction(ctx, p.searchMangas, lua.LString(query))
+	if err != nil {
+		return nil, err
+	}
 
 	var mangas = make([]*Manga, len(values))
 	for i, value := range values {
@@ -205,8 +233,8 @@ func (p *Provider) SearchMangas(ctx context.Context, query string) ([]*Manga, er
 			return nil, err
 		}
 
-		if manga.Title == "" {
-			return nil, fmt.Errorf("manga title must be non empty")
+		if err = manga.validate(); err != nil {
+			return nil, err
 		}
 
 		manga.table = table
@@ -216,24 +244,14 @@ func (p *Provider) SearchMangas(ctx context.Context, query string) ([]*Manga, er
 	return mangas, nil
 }
 
-func (p *Provider) MangaChapters(ctx context.Context, manga *Manga) ([]*Chapter, error) {
-	p.state.SetContext(ctx)
-	err := p.state.CallByParam(lua.P{
-		Fn:      p.mangaChapters,
-		NRet:    1,
-		Protect: true,
-	}, manga.table)
-
+func (p *Provider) MangaChapters(
+	ctx context.Context,
+	manga *Manga,
+) ([]*Chapter, error) {
+	values, err := p.evalFunction(ctx, p.mangaChapters, manga.table)
 	if err != nil {
 		return nil, err
 	}
-
-	list := p.state.CheckTable(-1)
-
-	var values []lua.LValue
-	list.ForEach(func(_ lua.LValue, value lua.LValue) {
-		values = append(values, value)
-	})
 
 	var chapters = make([]*Chapter, len(values))
 	for i, value := range values {
@@ -248,8 +266,8 @@ func (p *Provider) MangaChapters(ctx context.Context, manga *Manga) ([]*Chapter,
 			return nil, err
 		}
 
-		if chapter.Title == "" {
-			return nil, fmt.Errorf("chapter title must be non empty")
+		if err = chapter.validate(); err != nil {
+			return nil, err
 		}
 
 		chapter.table = table
@@ -265,24 +283,14 @@ func (p *Provider) MangaChapters(ctx context.Context, manga *Manga) ([]*Chapter,
 	return chapters, nil
 }
 
-func (p *Provider) ChapterPages(ctx context.Context, chapter *Chapter) ([]*Page, error) {
-	p.state.SetContext(ctx)
-	err := p.state.CallByParam(lua.P{
-		Fn:      p.chapterPages,
-		NRet:    1,
-		Protect: true,
-	}, chapter.table)
-
+func (p *Provider) ChapterPages(
+	ctx context.Context,
+	chapter *Chapter,
+) ([]*Page, error) {
+	values, err := p.evalFunction(ctx, p.chapterPages, chapter.table)
 	if err != nil {
 		return nil, err
 	}
-
-	list := p.state.CheckTable(-1)
-
-	var values []lua.LValue
-	list.ForEach(func(_ lua.LValue, value lua.LValue) {
-		values = append(values, value)
-	})
 
 	var pages = make([]*Page, len(values))
 	for i, value := range values {
@@ -297,8 +305,8 @@ func (p *Provider) ChapterPages(ctx context.Context, chapter *Chapter) ([]*Page,
 			return nil, err
 		}
 
-		if page.Url == "" && page.Data == "" {
-			return nil, fmt.Errorf("either page url or data must be non empty")
+		if err = page.validate(); err != nil {
+			return nil, err
 		}
 
 		page.chapter = chapter
@@ -310,35 +318,27 @@ func (p *Provider) ChapterPages(ctx context.Context, chapter *Chapter) ([]*Page,
 	return pages, nil
 }
 
-type DownloadOptions struct {
-	Format         Format
-	CreateMangaDir bool
-	SkipIfExists   bool
-}
-
 func (p *Provider) DownloadChapter(
 	ctx context.Context,
 	chapter *Chapter,
 	dir string,
 	options DownloadOptions,
-) error {
+) (path string, err error) {
 	if !options.Format.IsAFormat() {
-		return fmt.Errorf("unsupported format")
+		return "", fmt.Errorf("unsupported format")
 	}
 
-	var path string
-
 	if options.CreateMangaDir {
-		path = filepath.Join(dir, p.client.options.MangaNameTemplate(chapter.manga.nameData()))
-		err := p.client.options.FS.MkdirAll(path, 0755)
+		path = filepath.Join(dir, p.client.options.MangaNameTemplate(chapter.manga.NameData()))
+		err = p.client.options.FS.MkdirAll(path, 0755)
 		if err != nil {
-			return err
+			return "", err
 		}
 	} else {
 		path = dir
 	}
 
-	path = filepath.Join(path, p.client.options.ChapterNameTemplate(chapter.nameData()))
+	path = filepath.Join(path, p.client.options.ChapterNameTemplate(chapter.NameData()))
 
 	var isDir bool
 	switch options.Format {
@@ -352,12 +352,12 @@ func (p *Provider) DownloadChapter(
 
 	exists, err := afero.Exists(p.client.options.FS, path)
 	if err != nil {
-		return err
+		return path, nil
 	}
 
 	if exists {
 		if options.SkipIfExists {
-			return nil
+			return path, nil
 		}
 
 		if isDir {
@@ -367,18 +367,18 @@ func (p *Provider) DownloadChapter(
 		}
 
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	pages, err := p.ChapterPages(ctx, chapter)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	downloadedPages, err := p.downloadPages(ctx, pages)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	switch options.Format {
@@ -390,7 +390,7 @@ func (p *Provider) DownloadChapter(
 		err = p.saveImages(downloadedPages, path)
 	}
 
-	return err
+	return path, err
 }
 
 func (p *Provider) downloadPages(ctx context.Context, pages []*Page) ([]*downloadedPage, error) {
@@ -522,4 +522,29 @@ func (p *Provider) pageReader(ctx context.Context, page *Page) (io.Reader, error
 	}
 
 	return bytes.NewReader(buffer), nil
+}
+
+func (p *Provider) ReadChapter(ctx context.Context, chapter *Chapter, options ReadOptions) error {
+	tempDir, err := afero.TempDir(p.client.options.FS, "", "libmangal")
+	if err != nil {
+		return err
+	}
+
+	chapterPath, err := p.DownloadChapter(ctx, chapter, tempDir, DownloadOptions{
+		Format:         options.Format,
+		CreateMangaDir: true,
+		SkipIfExists:   true,
+	})
+	if err != nil {
+		return err
+	}
+
+	err = open.Run(chapterPath)
+	if err != nil {
+		return err
+	}
+
+	// TODO: history
+
+	return nil
 }
