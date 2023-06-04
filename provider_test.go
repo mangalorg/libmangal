@@ -28,8 +28,8 @@ func TestProviderHandle_Get(t *testing.T) {
 	Convey("Given a provider handle", t, func() {
 		handle := defaultClient.ProvidersHandles()[0]
 
-		Convey("When Provider() is called", func() {
-			provider, err := handle.Provider()
+		Convey("When LoadProvider() is called", func() {
+			provider, err := handle.LoadProvider()
 
 			Convey("Then it should return a provider", func() {
 				So(err, ShouldBeNil)
@@ -48,7 +48,7 @@ func TestProviderHandle_Get(t *testing.T) {
 func TestProvider_SearchMangas(t *testing.T) {
 	Convey("Given a provider", t, func() {
 		handle := defaultClient.ProvidersHandles()[0]
-		provider, err := handle.Provider()
+		provider, err := handle.LoadProvider()
 		So(err, ShouldBeNil)
 
 		Convey("When SearchMangas() is called", func() {
@@ -71,7 +71,7 @@ func TestProvider_SearchMangas(t *testing.T) {
 func TestProvider_MangaChapters(t *testing.T) {
 	Convey("Given a manga", t, func() {
 		handle := defaultClient.ProvidersHandles()[0]
-		provider, err := handle.Provider()
+		provider, err := handle.LoadProvider()
 		So(err, ShouldBeNil)
 
 		mangas, err := provider.SearchMangas(context.Background(), "naruto")
@@ -99,7 +99,7 @@ func TestProvider_MangaChapters(t *testing.T) {
 func TestProvider_ChapterPages(t *testing.T) {
 	Convey("Given a chapter", t, func() {
 		handle := defaultClient.ProvidersHandles()[0]
-		provider, err := handle.Provider()
+		provider, err := handle.LoadProvider()
 		So(err, ShouldBeNil)
 
 		mangas, err := provider.SearchMangas(context.Background(), "naruto")

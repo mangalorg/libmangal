@@ -37,12 +37,14 @@ var runCmd = &cobra.Command{
 	Short: "Run a provider",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := libmangal.NewClient(libmangal.Options{
-			FS: afero.NewOsFs(),
-		})
+		client := libmangal.NewClient(libmangal.Options{})
 
-		handle := client.ProviderHandleFromPath(args[0])
-		provider, err := handle.Provider(nil)
+		handle, err := client.ProviderHandleFromPath(args[0])
+		if err != nil {
+			return err
+		}
+
+		provider, err := handle.LoadProvider(nil)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -163,19 +165,24 @@ var probeCmd = &cobra.Command{
 			FS: afero.NewOsFs(),
 		})
 
-		handle := client.ProviderHandleFromPath(args[0])
-		provider, err := handle.Provider(nil)
+		handle, err := client.ProviderHandleFromPath(args[0])
 		if err != nil {
 			return err
 		}
 
+		provider, err := handle.LoadProvider(nil)
+		if err != nil {
+			return err
+		}
+
+		info := provider.Info()
 		fmt.Printf(`Name: %s
 Description: %s
 Version: %s
 `,
-			provider.Info().Name,
-			provider.Info().Description,
-			provider.Info().Version,
+			info.Name,
+			info.Description,
+			info.Version,
 		)
 
 		return nil

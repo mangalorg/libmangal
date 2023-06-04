@@ -7,13 +7,11 @@ import (
 	"github.com/mangalorg/libmangal/vm"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/philippgille/gokv"
-	"github.com/philippgille/gokv/syncmap"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/afero"
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 	"golang.org/x/sync/errgroup"
-	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -21,47 +19,10 @@ import (
 	"strings"
 )
 
-type ProviderHandle struct {
-	client *Client
-	path   string
-}
-
-func (p ProviderHandle) Path() string {
-	return p.path
-}
-
-func (p ProviderHandle) Filename() string {
-	return filepath.Base(p.path)
-}
-
-func (p ProviderHandle) Provider(httpStore gokv.Store) (*Provider, error) {
-	if httpStore == nil {
-		httpStore = syncmap.NewStore(syncmap.DefaultOptions)
-	}
-
-	provider := &Provider{
-		path:      p.path,
-		client:    p.client,
-		httpStore: httpStore,
-	}
-
-	if err := provider.loadInfo(); err != nil {
-		return nil, err
-	}
-
-	return provider, nil
-}
-
-type ProviderInfo struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-	Version     string `yaml:"version"`
-}
-
 type Provider struct {
-	info   ProviderInfo
-	path   string
-	client *Client
+	rawScript []byte
+	info      *ProviderInfo
+	client    *Client
 
 	httpStore gokv.Store
 
@@ -70,50 +31,7 @@ type Provider struct {
 }
 
 func (p *Provider) Info() ProviderInfo {
-	return p.info
-}
-
-func (p *Provider) loadInfo() error {
-	file, err := p.client.options.FS.Open(p.path)
-	if err != nil {
-		return err
-	}
-
-	stat, err := file.Stat()
-	if err != nil {
-		return err
-	}
-
-	if stat.IsDir() {
-		return fmt.Errorf("not a file")
-	}
-
-	var buffer = make([]byte, stat.Size())
-	_, err = file.Read(buffer)
-	if err != nil {
-		return err
-	}
-
-	var (
-		infoLines  [][]byte
-		infoPrefix = []byte("--|")
-	)
-
-	for _, line := range bytes.Split(buffer, []byte("\n")) {
-		if bytes.HasPrefix(line, infoPrefix) {
-			infoLines = append(infoLines, bytes.TrimPrefix(line, infoPrefix))
-		}
-	}
-
-	info := ProviderInfo{}
-	err = yaml.Unmarshal(bytes.Join(infoLines, []byte("\n")), &info)
-
-	if err != nil {
-		return err
-	}
-
-	p.info = info
-	return nil
+	return *p.info
 }
 
 func (p *Provider) Load(ctx context.Context) error {
@@ -130,22 +48,8 @@ func (p *Provider) Load(ctx context.Context) error {
 		p.state = state
 	}()
 
-	file, err := p.client.options.FS.Open(p.path)
-	if err != nil {
-		return err
-	}
-
-	stat, err := file.Stat()
-	if err != nil {
-		return err
-	}
-
-	if stat.IsDir() {
-		return fmt.Errorf("not a file")
-	}
-
 	state.SetContext(ctx)
-	lfunc, err := state.Load(file, filepath.Base(p.path))
+	lfunc, err := state.Load(bytes.NewReader(p.rawScript), p.info.Name)
 	if err != nil {
 		return err
 	}

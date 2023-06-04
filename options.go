@@ -20,9 +20,8 @@ type ReadOptions struct {
 }
 
 type Options struct {
-	HTTPClient     *http.Client
-	FS             afero.Fs
-	ProvidersPaths []string
+	HTTPClient *http.Client
+	FS         afero.Fs
 
 	ChapterNameTemplate func(ChapterNameData) string
 	MangaNameTemplate   func(MangaNameData) string

@@ -1,7 +1,8 @@
 package libmangal
 
 import (
-	"github.com/samber/lo"
+	"fmt"
+	"io"
 	"regexp"
 	"strings"
 )
@@ -29,18 +30,53 @@ func NewClient(options Options) *Client {
 	return client
 }
 
-func (c *Client) ProviderHandleFromPath(path string) ProviderHandle {
-	return ProviderHandle{
-		client: c,
-		path:   path,
+func (c *Client) ProviderHandleFromReader(reader io.Reader) (*ProviderHandle, error) {
+	contents, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
 	}
+
+	info, err := extractInfo(contents)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProviderHandle{
+		client:    c,
+		rawScript: contents,
+		info:      info,
+	}, nil
 }
 
-func (c *Client) ProvidersHandles() []ProviderHandle {
-	return lo.Map(c.options.ProvidersPaths, func(path string, _ int) ProviderHandle {
-		return ProviderHandle{
-			client: c,
-			path:   path,
-		}
-	})
+func (c *Client) ProviderHandleFromPath(path string) (*ProviderHandle, error) {
+	file, err := c.options.FS.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	if stat.IsDir() {
+		return nil, fmt.Errorf("not a file")
+	}
+
+	var buffer = make([]byte, stat.Size())
+	_, err = file.Read(buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := extractInfo(buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProviderHandle{
+		client:    c,
+		rawScript: buffer,
+		info:      info,
+	}, nil
 }

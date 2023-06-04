@@ -136,7 +136,6 @@ doRequest:
 	}
 
 	if errRequestDump == nil {
-		// dump response
 		dumpedResponse, err := httputil.DumpResponse(response, true)
 		if err != nil {
 			goto exit
