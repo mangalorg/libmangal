@@ -9,7 +9,6 @@ import (
 	"github.com/samber/lo"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -239,10 +238,6 @@ func (c *Client) AnilistSearchManga(
 	return mangas, nil
 }
 
-func unifyString(s string) string {
-	return strings.ToLower(strings.TrimSpace(s))
-}
-
 func (c *Client) AnilistFindClosestManga(
 	ctx context.Context,
 	title string,
@@ -328,4 +323,32 @@ func (c *Client) anilistFindClosestManga(
 	c.options.Log(fmt.Sprintf("Found closest manga on Anilist: %q #%d", closest.String(), closest.ID))
 
 	return closest, nil
+}
+
+func (c *Client) BindTitleWithAnilistId(title string, anilistMangaId int) error {
+	return c.options.Anilist.TitleToIdStore.Set(title, anilistMangaId)
+}
+
+func (c *Client) MakeMangaWithAnilist(ctx context.Context, manga *Manga) (*MangaWithAnilist, error) {
+	anilistManga, err := c.AnilistFindClosestManga(ctx, manga.Title)
+	if err != nil {
+		return nil, err
+	}
+
+	return &MangaWithAnilist{
+		Manga:        manga,
+		AnilistManga: anilistManga,
+	}, nil
+}
+
+func (c *Client) MakeChapterWithAnilist(ctx context.Context, chapter *Chapter) (*ChapterOfMangaWithAnilist, error) {
+	mangaWithAnilist, err := c.MakeMangaWithAnilist(ctx, chapter.manga)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ChapterOfMangaWithAnilist{
+		Chapter:          chapter,
+		MangaWithAnilist: mangaWithAnilist,
+	}, nil
 }

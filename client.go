@@ -3,21 +3,10 @@ package libmangal
 import (
 	"fmt"
 	"io"
-	"regexp"
-	"strings"
 )
 
 type Client struct {
 	options *ClientOptions
-}
-
-func sanitizePath(path string) string {
-	for _, ch := range invalidPathChars {
-		path = strings.ReplaceAll(path, string(ch), "_")
-	}
-
-	// replace two or more consecutive underscores with one underscore
-	return regexp.MustCompile(`_+`).ReplaceAllString(path, "_")
 }
 
 func NewClient(options *ClientOptions) *Client {

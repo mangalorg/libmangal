@@ -1,8 +1,11 @@
 package libmangal
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"github.com/mangalorg/libmangal/vm"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
@@ -239,26 +242,90 @@ func (p *Provider) DownloadChapter(
 	chapter *Chapter,
 	dir string,
 	options DownloadOptions,
-) (path string, err error) {
+) (string, error) {
 	if !options.Format.IsAFormat() {
 		return "", fmt.Errorf("unsupported format")
 	}
 
 	p.client.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter.Title, options.Format.String()))
-	if options.CreateMangaDir {
-		path = filepath.Join(dir, p.client.options.MangaNameTemplate(chapter.manga.NameData()))
-		err = p.client.options.FS.MkdirAll(path, 0755)
+
+	chapterPath, isDir := p.computeChapterPath(chapter, options.Format, options.CreateMangaDir)
+	finalPath := filepath.Join(dir, chapterPath)
+
+	exists, err := afero.Exists(p.client.options.FS, finalPath)
+	if err != nil {
+		return chapterPath, nil
+	}
+
+	if exists {
+		if options.SkipIfExists {
+			p.client.options.Log(fmt.Sprintf("Chapter %q already exists, skipping", chapter.Title))
+			return chapterPath, nil
+		}
+
+		p.client.options.Log(fmt.Sprintf("Chapter %q already exists, removing", chapter.Title))
+		if isDir {
+			err = p.client.options.FS.RemoveAll(finalPath)
+		} else {
+			err = p.client.options.FS.Remove(finalPath)
+		}
+
 		if err != nil {
 			return "", err
 		}
-	} else {
-		path = dir
+	}
+
+	// create a temp dir where chapter will be downloaded.
+	// after successful download chapter will be moved to the original location
+	tempDir, err := afero.TempDir(p.client.options.FS, "", "")
+	if err != nil {
+		return "", err
+	}
+
+	tempPath := filepath.Join(tempDir, chapterPath)
+
+	if options.CreateMangaDir {
+		mangaDir := filepath.Join(tempDir, filepath.Dir(chapterPath))
+		err = p.client.options.FS.MkdirAll(mangaDir, 0755)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	err = p.downloadChapter(ctx, chapter, tempPath, options)
+	if err != nil {
+		return "", err
+	}
+
+	if options.CreateMangaDir {
+		mangaDir := filepath.Join(dir, filepath.Dir(chapterPath))
+		err = p.client.options.FS.MkdirAll(mangaDir, 0755)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// move to the original location
+	err = p.client.options.FS.Rename(
+		tempPath,
+		finalPath,
+	)
+
+	if err != nil {
+		return "", err
+	}
+
+	return chapterPath, nil
+}
+
+func (p *Provider) computeChapterPath(chapter *Chapter, format Format, createMangaDir bool) (path string, isDir bool) {
+	if createMangaDir {
+		path = p.client.options.MangaNameTemplate(chapter.manga.NameData())
 	}
 
 	path = filepath.Join(path, p.client.options.ChapterNameTemplate(chapter.NameData()))
 
-	var isDir bool
-	switch options.Format {
+	switch format {
 	case FormatPDF:
 		path += ".pdf"
 	case FormatCBZ:
@@ -267,49 +334,70 @@ func (p *Provider) DownloadChapter(
 		isDir = true
 	}
 
-	exists, err := afero.Exists(p.client.options.FS, path)
-	if err != nil {
-		return path, nil
-	}
+	return path, isDir
+}
 
-	if exists {
-		if options.SkipIfExists {
-			p.client.options.Log(fmt.Sprintf("Chapter %q already exists, skipping", chapter.Title))
-			return path, nil
-		}
-
-		p.client.options.Log(fmt.Sprintf("Chapter %q already exists, removing", chapter.Title))
-		if isDir {
-			err = p.client.options.FS.RemoveAll(path)
-		} else {
-			err = p.client.options.FS.Remove(path)
-		}
-
-		if err != nil {
-			return "", err
-		}
-	}
-
+func (p *Provider) downloadChapter(
+	ctx context.Context,
+	chapter *Chapter,
+	path string,
+	options DownloadOptions,
+) error {
 	pages, err := p.ChapterPages(ctx, chapter)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	downloadedPages, err := p.downloadPages(ctx, pages)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	switch options.Format {
 	case FormatPDF:
 		err = p.savePDF(downloadedPages, path)
 	case FormatCBZ:
-		err = p.saveCBZ(downloadedPages, path)
+		var comicInfo *ComicInfo
+		if options.WriteComicInfoXml {
+			chapter, err := p.client.MakeChapterWithAnilist(ctx, chapter)
+			if err != nil {
+				return err
+			}
+
+			comicInfo = chapter.ComicInfo(options.ComicInfoOptions)
+		}
+
+		err = p.saveCBZ(downloadedPages, path, comicInfo)
 	case FormatImages:
 		err = p.saveImages(downloadedPages, path)
 	}
 
-	return path, err
+	if err != nil {
+		return err
+	}
+
+	if options.WriteSeriesJson {
+		manga, err := p.client.MakeMangaWithAnilist(ctx, chapter.manga)
+		if err != nil {
+			return err
+		}
+
+		seriesJson := manga.SeriesJson()
+		seriesJsonPath := filepath.Join(filepath.Dir(path), "series.json")
+
+		marshalled, err := json.Marshal(seriesJson)
+		if err != nil {
+			return err
+		}
+
+		err = afero.WriteFile(p.client.options.FS, seriesJsonPath, marshalled, 0644)
+		if err != nil {
+			// TODO: make a separate error type for that
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (p *Provider) downloadPages(ctx context.Context, pages []*Page) ([]*downloadedPage, error) {
@@ -372,8 +460,66 @@ func (p *Provider) savePDF(
 func (p *Provider) saveCBZ(
 	pages []*downloadedPage,
 	path string,
+	comicInfoXml *ComicInfo,
 ) error {
-	panic("not implemented")
+	p.client.options.Log(fmt.Sprintf("Saving %d pages as CBZ", len(pages)))
+
+	var file afero.File
+	file, err := p.client.options.FS.Create(path)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	zipWriter := zip.NewWriter(file)
+	defer zipWriter.Close()
+
+	for i, page := range pages {
+		p.client.options.Log(fmt.Sprintf("Saving page #%d", i))
+
+		if page.Reader == nil {
+			// this should not occur, but just for the safety
+			return fmt.Errorf("reader %d is nil", i)
+		}
+
+		var writer io.Writer
+		writer, err = zipWriter.CreateHeader(&zip.FileHeader{
+			Name:   fmt.Sprintf("%04d.%s", i+1, page.Extension),
+			Method: zip.Store,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		_, err = io.Copy(writer, page.Reader)
+		if err != nil {
+			return err
+		}
+	}
+
+	if comicInfoXml != nil {
+		marshalled, err := xml.Marshal(comicInfoXml)
+		if err != nil {
+			return err
+		}
+
+		writer, err := zipWriter.CreateHeader(&zip.FileHeader{
+			Name:   "ComicInfo.xml",
+			Method: zip.Store,
+		})
+		if err != nil {
+			return err
+		}
+
+		_, err = writer.Write(marshalled)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (p *Provider) saveImages(
@@ -467,7 +613,7 @@ func (p *Provider) ReadChapter(ctx context.Context, chapter *Chapter, options Re
 		return err
 	}
 
-	chapterPath, err := p.DownloadChapter(ctx, chapter, tempDir, DownloadOptions{
+	path, err := p.DownloadChapter(ctx, chapter, tempDir, DownloadOptions{
 		Format:         options.Format,
 		CreateMangaDir: true,
 		SkipIfExists:   true,
@@ -476,8 +622,9 @@ func (p *Provider) ReadChapter(ctx context.Context, chapter *Chapter, options Re
 		return err
 	}
 
-	p.client.options.Log(fmt.Sprintf("Opening chapter %q with default app", chapterPath))
-	err = open.Run(chapterPath)
+	path = filepath.Join(tempDir, path)
+	p.client.options.Log(fmt.Sprintf("Opening chapter %q with default app", path))
+	err = open.Run(path)
 	if err != nil {
 		return err
 	}

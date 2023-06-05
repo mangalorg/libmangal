@@ -10,13 +10,31 @@ import (
 )
 
 type DownloadOptions struct {
-	Format         Format
-	CreateMangaDir bool
-	SkipIfExists   bool
+	Format            Format
+	CreateMangaDir    bool
+	SkipIfExists      bool
+	WriteSeriesJson   bool
+	WriteComicInfoXml bool
+	ComicInfoOptions  *ComicInfoOptions
+}
+
+func DefaultDownloadOptions() *DownloadOptions {
+	return &DownloadOptions{
+		Format:            FormatPDF,
+		CreateMangaDir:    true,
+		SkipIfExists:      true,
+		WriteSeriesJson:   false,
+		WriteComicInfoXml: false,
+		ComicInfoOptions:  DefaultComicInfoOptions(),
+	}
 }
 
 type ReadOptions struct {
 	Format Format
+}
+
+func DefaultReadOptions() *ReadOptions {
+	return &ReadOptions{Format: FormatPDF}
 }
 
 type AnilistOptions struct {
@@ -71,5 +89,20 @@ func DefaultClientOptions() *ClientOptions {
 		},
 		Log:     func(string) {},
 		Anilist: DefaultAnilistOptions(),
+	}
+}
+
+type ComicInfoOptions struct {
+	AddDate         bool
+	AlternativeDate *Date
+
+	// TagRelevanceThreshold is the minimum relevance of a tag to be added to ComicInfo.xml file. From 0 to 100
+	TagRelevanceThreshold int
+}
+
+func DefaultComicInfoOptions() *ComicInfoOptions {
+	return &ComicInfoOptions{
+		AddDate:               true,
+		TagRelevanceThreshold: 60,
 	}
 }
