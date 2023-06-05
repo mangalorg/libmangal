@@ -29,12 +29,6 @@ func Lib() *luadoc.Lib {
 						Type:        luadoc.Any,
 						Description: "The decoded value.",
 					},
-					{
-						Name:        "error",
-						Type:        luadoc.String,
-						Description: "The error message if the JSON string is invalid.",
-						Optional:    true,
-					},
 				},
 			},
 			{
@@ -54,12 +48,6 @@ func Lib() *luadoc.Lib {
 						Type:        luadoc.String,
 						Description: "The encoded JSON string.",
 					},
-					{
-						Name:        "error",
-						Type:        luadoc.String,
-						Description: "The error message if the value cannot be encoded.",
-						Optional:    true,
-					},
 				},
 			},
 		},
@@ -71,9 +59,8 @@ func apiDecode(L *lua.LState) int {
 
 	value, err := decode(L, []byte(str))
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 	L.Push(value)
 	return 1
@@ -84,9 +71,8 @@ func apiEncode(L *lua.LState) int {
 
 	data, err := encode(value)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 	L.Push(lua.LString(string(data)))
 	return 1

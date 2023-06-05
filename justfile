@@ -3,15 +3,24 @@
 go-mod := `go list`
 flags := '-trimpath -ldflags="-s -w"'
 
-install:
-	go install ./cmd/lmangal
+test:
+    go test ./...
+
+generate:
+	go generate ./...
+
+install cmd:
+	go install ./cmd/{{cmd}}
+
+example example:
+    go run ./examples/{{example}}
 
 update:
 	go get -u
 	go mod tidy -v
 
-generate:
-	go generate ./...
+publish tag:
+    GOPROXY=proxy.golang.org go list -m {{go-mod}}@{{tag}}
 
 # Rename go.mod name
 rename new-go-mod:

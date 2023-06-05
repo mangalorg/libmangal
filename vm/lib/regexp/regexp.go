@@ -199,12 +199,6 @@ Inside replacement, $ signs are interpreted as in expand, so for instance $1 rep
 						Description: "A table of all matches",
 						Type:        luadoc.Table,
 					},
-					{
-						Name:        "error",
-						Description: "An error if one occurred",
-						Type:        luadoc.String,
-						Optional:    true,
-					},
 				},
 			},
 			{
@@ -224,12 +218,6 @@ Inside replacement, $ signs are interpreted as in expand, so for instance $1 rep
 						Description: "The compiled regular expression",
 						Type:        classRe.Name,
 					},
-					{
-						Name:        "error",
-						Description: "An error if one occurred",
-						Type:        luadoc.String,
-						Optional:    true,
-					},
 				},
 			},
 		},
@@ -244,9 +232,8 @@ func match(L *lua.LState) int {
 	text := L.CheckString(2)
 	matched, err := regexp.MatchString(pattern, text)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	L.Push(lua.LBool(matched))
@@ -257,9 +244,8 @@ func compile(L *lua.LState) int {
 	pattern := L.CheckString(1)
 	compiled, err := regexp.Compile(pattern)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	pushRegexp(L, compiled)

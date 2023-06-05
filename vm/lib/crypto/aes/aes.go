@@ -33,12 +33,6 @@ func Lib() *luadoc.Lib {
 						Description: "The encrypted string.",
 						Type:        luadoc.String,
 					},
-					{
-						Name:        "error",
-						Description: "The error message, if any.",
-						Type:        luadoc.String,
-						Optional:    true,
-					},
 				},
 			},
 			{
@@ -63,11 +57,6 @@ func Lib() *luadoc.Lib {
 						Description: "The decrypted string.",
 						Type:        luadoc.String,
 					},
-					{
-						Name:        "error",
-						Description: "The error message, if any.",
-						Type:        luadoc.String,
-					},
 				},
 			},
 		},
@@ -80,9 +69,8 @@ func encrypt(L *lua.LState) int {
 
 	cipher, err := aes.NewCipher([]byte(key))
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	encrypted := make([]byte, len(value))
@@ -98,9 +86,8 @@ func decrypt(L *lua.LState) int {
 
 	cipher, err := aes.NewCipher([]byte(key))
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	decrypted := make([]byte, len(value))

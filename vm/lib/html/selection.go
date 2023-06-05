@@ -63,9 +63,8 @@ func selectionHtml(L *lua.LState) int {
 	selection := checkSelection(L, 1)
 	html, err := selection.Html()
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	L.Push(lua.LString(html))
@@ -330,16 +329,14 @@ func selectionSimplified(L *lua.LState) int {
 
 	html, err := selection.Html()
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	article, err := readability.New().Parse(strings.NewReader(html), "https://example.com")
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	document := goquery.NewDocumentFromNode(article.Node)

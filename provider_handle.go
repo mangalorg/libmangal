@@ -2,10 +2,11 @@ package libmangal
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"github.com/philippgille/gokv"
-	"github.com/philippgille/gokv/syncmap"
+	"github.com/mangalorg/libmangal/vm"
 	"github.com/pkg/errors"
+	lua "github.com/yuin/gopher-lua"
 	"golang.org/x/mod/semver"
 	"gopkg.in/yaml.v3"
 )
@@ -18,7 +19,7 @@ type ProviderInfo struct {
 
 func (p *ProviderInfo) validate() error {
 	if p.Name == "" {
-		return fmt.Errorf("title must be set")
+		return fmt.Errorf("name must be set")
 	}
 
 	if !semver.IsValid(p.Version) {
@@ -64,16 +65,56 @@ func (p ProviderHandle) Info() ProviderInfo {
 	return *p.info
 }
 
-func (p ProviderHandle) LoadProvider(httpStore gokv.Store) (*Provider, error) {
-	if httpStore == nil {
-		httpStore = syncmap.NewStore(syncmap.DefaultOptions)
-	}
-
+func (p ProviderHandle) LoadProvider(ctx context.Context, options *ProviderLoadOptions) (*Provider, error) {
 	provider := &Provider{
 		client:    p.client,
-		httpStore: httpStore,
 		info:      p.info,
 		rawScript: p.rawScript,
+	}
+
+	p.client.options.Log(fmt.Sprintf("Compiling provider %q", p.info.Name))
+	state := vm.NewState(&vm.Options{
+		HTTPClient: p.client.options.HTTPClient,
+		HTTPStore:  options.HTTPStore,
+		FS:         p.client.options.FS,
+	})
+	provider.state = state
+
+	state.SetContext(ctx)
+	lfunc, err := state.Load(bytes.NewReader(p.rawScript), p.info.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	p.client.options.Log(fmt.Sprintf("Initializing provider %q", p.info.Name))
+	if err = state.CallByParam(lua.P{
+		Fn:      lfunc,
+		NRet:    0,
+		Protect: true,
+	}); err != nil {
+		return nil, err
+	}
+
+	// TODO: move to a separate file or module to use in other places
+	// e.g. templates
+	const (
+		searchMangas  = "SearchMangas"
+		mangaChapters = "MangaChapters"
+		chapterPages  = "ChapterPages"
+	)
+
+	for name, fn := range map[string]**lua.LFunction{
+		searchMangas:  &provider.searchMangas,
+		mangaChapters: &provider.mangaChapters,
+		chapterPages:  &provider.chapterPages,
+	} {
+		p.client.options.Log(fmt.Sprintf("Loading function %q", name))
+
+		var ok bool
+		*fn, ok = state.GetGlobal(name).(*lua.LFunction)
+		if !ok {
+			return nil, fmt.Errorf("missing function %q", name)
+		}
 	}
 
 	return provider, nil

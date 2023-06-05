@@ -19,12 +19,6 @@ func Lib() *luadoc.Lib {
 						Description: "The exported value.",
 						Type:        luadoc.Any,
 					},
-					{
-						Name:        "error",
-						Description: "The error message, if any.",
-						Type:        luadoc.String,
-						Optional:    true,
-					},
 				},
 			},
 			{
@@ -159,12 +153,6 @@ func Lib() *luadoc.Lib {
 						Description: "The value returned by the code.",
 						Type:        classVMValue.Name,
 					},
-					{
-						Name:        "error",
-						Description: "The error that occurred, if any.",
-						Type:        luadoc.String,
-						Optional:    true,
-					},
 				},
 			},
 			{
@@ -184,12 +172,6 @@ func Lib() *luadoc.Lib {
 						Description: "The value of the property.",
 						Type:        classVMValue.Name,
 					},
-					{
-						Name:        "error",
-						Description: "The error that occurred, if any.",
-						Type:        luadoc.String,
-						Optional:    true,
-					},
 				},
 			},
 			{
@@ -206,14 +188,6 @@ func Lib() *luadoc.Lib {
 						Name:        "value",
 						Description: "The value to set.",
 						Type:        luadoc.Any,
-					},
-				},
-				Returns: []*luadoc.Param{
-					{
-						Name:        "error",
-						Description: "The error that occurred, if any.",
-						Type:        luadoc.String,
-						Optional:    true,
 					},
 				},
 			},

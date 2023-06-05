@@ -7,9 +7,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"github.com/mangalorg/libmangal/vm"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
-	"github.com/philippgille/gokv"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/afero"
 	"github.com/yuin/gluamapper"
@@ -27,67 +25,12 @@ type Provider struct {
 	info      *ProviderInfo
 	client    *Client
 
-	httpStore gokv.Store
-
 	searchMangas, mangaChapters, chapterPages *lua.LFunction
 	state                                     *lua.LState
 }
 
 func (p *Provider) Info() ProviderInfo {
 	return *p.info
-}
-
-func (p *Provider) Load(ctx context.Context) error {
-	if p.state != nil {
-		return fmt.Errorf("already loaded")
-	}
-
-	p.client.options.Log(fmt.Sprintf("Compiling provider %q", p.info.Name))
-	state := vm.NewState(&vm.Options{
-		HTTPClient: p.client.options.HTTPClient,
-		HTTPStore:  p.httpStore,
-		FS:         p.client.options.FS,
-	})
-	p.state = state
-
-	state.SetContext(ctx)
-	lfunc, err := state.Load(bytes.NewReader(p.rawScript), p.info.Name)
-	if err != nil {
-		return err
-	}
-
-	p.client.options.Log(fmt.Sprintf("Initializing provider %q", p.info.Name))
-	if err = state.CallByParam(lua.P{
-		Fn:      lfunc,
-		NRet:    0,
-		Protect: true,
-	}); err != nil {
-		return err
-	}
-
-	// TODO: move to a separate file or module to use in other places
-	// e.g. templates
-	const (
-		searchMangas  = "SearchMangas"
-		mangaChapters = "MangaChapters"
-		chapterPages  = "ChapterPages"
-	)
-
-	for name, fn := range map[string]**lua.LFunction{
-		searchMangas:  &p.searchMangas,
-		mangaChapters: &p.mangaChapters,
-		chapterPages:  &p.chapterPages,
-	} {
-		p.client.options.Log(fmt.Sprintf("Loading function %q", name))
-
-		var ok bool
-		*fn, ok = state.GetGlobal(name).(*lua.LFunction)
-		if !ok {
-			return fmt.Errorf("missing function %q", name)
-		}
-	}
-
-	return nil
 }
 
 func (p *Provider) evalFunction(

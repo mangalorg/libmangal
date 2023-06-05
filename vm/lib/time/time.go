@@ -233,9 +233,8 @@ func timeParse(L *lua.LState) int {
 	value := L.CheckString(2)
 	t, err := time.Parse(layout, value)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 	pushTime(L, t)
 	return 1

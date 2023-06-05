@@ -29,16 +29,14 @@ func vmValueExport(L *lua.LState) int {
 	value := checkVMValue(L, 1)
 	nativeValue, err := value.Export()
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	lvalue, err := util.ToLValue(L, nativeValue)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	L.Push(lvalue)

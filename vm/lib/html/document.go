@@ -31,9 +31,8 @@ func parse(L *lua.LState) int {
 	reader := strings.NewReader(value)
 	document, err := goquery.NewDocumentFromReader(reader)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	pushDocument(L, document)
@@ -53,9 +52,8 @@ func documentHtml(L *lua.LState) int {
 	document := checkDocument(L, 1)
 	html, err := document.Html()
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	L.Push(lua.LString(html))
@@ -81,16 +79,14 @@ func documentSimplified(L *lua.LState) int {
 	document := checkDocument(L, 1)
 	html, err := document.Html()
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	article, err := readability.New().Parse(strings.NewReader(html), "https://example.com")
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	document = goquery.NewDocumentFromNode(article.Node)

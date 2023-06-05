@@ -70,15 +70,10 @@ var runCmd = &cobra.Command{
 			return err
 		}
 
-		provider, err := handle.LoadProvider(nil)
+		provider, err := handle.LoadProvider(context.Background(), libmangal.DefaultProviderLoadOptions())
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
-		}
-
-		err = provider.Load(context.Background())
-		if err != nil {
-			return err
 		}
 
 		if query, _ := cmd.Flags().GetString("query"); query != "" {
@@ -194,7 +189,7 @@ var probeCmd = &cobra.Command{
 			return err
 		}
 
-		provider, err := handle.LoadProvider(nil)
+		provider, err := handle.LoadProvider(context.Background(), libmangal.DefaultProviderLoadOptions())
 		if err != nil {
 			return err
 		}
@@ -276,5 +271,46 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+}
+
+func m() {
+	client := libmangal.NewClient(libmangal.DefaultClientOptions())
+	providerHandle, err := client.ProviderHandleFromPath("script.lua")
+	if err != nil {
+		panic(err)
+	}
+
+	provider, err := providerHandle.LoadProvider(
+		context.Background(),
+		libmangal.DefaultProviderLoadOptions(),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	mangas, err := provider.SearchMangas(
+		context.Background(),
+		"chainsaw man",
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	chapters, err := provider.MangaChapters(
+		context.Background(),
+		mangas[0],
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	err = provider.ReadChapter(
+		context.Background(),
+		chapters[0],
+		libmangal.DefaultReadOptions(),
+	)
+	if err != nil {
+		panic(err)
 	}
 }

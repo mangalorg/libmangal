@@ -36,9 +36,8 @@ func vmRun(L *lua.LState) int {
 
 	value, err := vm.Run(script)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	pushVMValue(L, &value)
@@ -51,9 +50,8 @@ func vmGet(L *lua.LState) int {
 
 	value, err := vm.Get(name)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	pushVMValue(L, &value)
@@ -68,13 +66,14 @@ func vmSet(L *lua.LState) int {
 	value, err := util.FromLValue(lvalue)
 	if err != nil {
 		L.Push(lua.LString(err.Error()))
-		return 1
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	err = vm.Set(name, value)
 	if err != nil {
-		L.Push(lua.LString(err.Error()))
-		return 1
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	return 0

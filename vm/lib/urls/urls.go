@@ -167,12 +167,6 @@ func Lib() *luadoc.Lib {
 						Description: "",
 						Type:        urlTypeName,
 					},
-					{
-						Name:        "error",
-						Description: "The error message, if any.",
-						Type:        luadoc.String,
-						Optional:    true,
-					},
 				},
 			},
 			{
@@ -339,12 +333,6 @@ func Lib() *luadoc.Lib {
 						Description: "The unescaped query.",
 						Type:        luadoc.String,
 					},
-					{
-						Name:        "err",
-						Description: "An error if the query could not be unescaped.",
-						Type:        luadoc.String,
-						Optional:    true,
-					},
 				},
 			},
 		},
@@ -395,9 +383,8 @@ func urlPathUnescape(L *lua.LState) int {
 	s := L.CheckString(1)
 	s, err := url.PathUnescape(s)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 	L.Push(lua.LString(s))
 	return 1
@@ -413,9 +400,8 @@ func urlQueryUnescape(L *lua.LState) int {
 	s := L.CheckString(1)
 	s, err := url.QueryUnescape(s)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 	L.Push(lua.LString(s))
 	return 1
@@ -459,9 +445,8 @@ func urlValuesDecode(L *lua.LState) int {
 	s := L.CheckString(1)
 	v, err := url.ParseQuery(s)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 	pushValues(L, &v)
 	return 1
@@ -486,9 +471,8 @@ func urlParse(L *lua.LState) int {
 
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	pushURL(L, u)
@@ -536,9 +520,8 @@ func urlURLParse(L *lua.LState) int {
 
 	parsed, err := u.Parse(ref)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 
 	pushURL(L, parsed)

@@ -67,12 +67,6 @@ func Lib(L *lua.LState) *luadoc.Lib {
 						Description: "The decoded string.",
 						Type:        luadoc.String,
 					},
-					{
-						Name:        "error",
-						Description: "The error message if the string could not be decoded.",
-						Type:        luadoc.String,
-						Optional:    true,
-					},
 				},
 			},
 			{
@@ -116,9 +110,8 @@ func decode(L *lua.LState) int {
 	encoding := L.OptUserData(2, encodingToLua(L, base64.StdEncoding)).Value.(*base64.Encoding)
 	decoded, err := encoding.DecodeString(value)
 	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-		return 2
+		L.RaiseError(err.Error())
+		return 0
 	}
 	L.Push(lua.LString(decoded))
 	return 1

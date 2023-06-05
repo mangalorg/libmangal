@@ -69,12 +69,6 @@ func Lib() *luadoc.Lib {
 						Description: `Gets the HTML contents of the first element in the set of matched elements. It includes text and comment nodes.`,
 						Type:        luadoc.String,
 					},
-					{
-						Name:        "error",
-						Description: `An error if one occurred.`,
-						Type:        luadoc.String,
-						Optional:    true,
-					},
 				},
 			},
 			{
@@ -456,12 +450,6 @@ func Lib() *luadoc.Lib {
 				Value:       selectionSimplified,
 				Returns: []*luadoc.Param{
 					selection,
-					{
-						Name:        "error",
-						Description: `An error message if the readable part could not be found.`,
-						Type:        luadoc.String,
-						Optional:    true,
-					},
 				},
 			},
 		},
@@ -494,12 +482,6 @@ func Lib() *luadoc.Lib {
 						Description: `The HTML contents of the first element in the set of matched elements.`,
 						Type:        luadoc.String,
 					},
-					{
-						Name:        "error",
-						Description: `An error if one occurred.`,
-						Type:        luadoc.String,
-						Optional:    true,
-					},
 				},
 			},
 			{
@@ -523,12 +505,6 @@ func Lib() *luadoc.Lib {
 						Name:        "html",
 						Description: `The simplified document`,
 						Type:        documentTypeName,
-					},
-					{
-						Name:        "error",
-						Description: `An error message if the readable part could not be found.`,
-						Type:        luadoc.String,
-						Optional:    true,
 					},
 				},
 			},
@@ -555,12 +531,6 @@ func Lib() *luadoc.Lib {
 						Name:        "document",
 						Description: `The document object.`,
 						Type:        documentTypeName,
-					},
-					{
-						Name:        "error",
-						Description: `An error if one occurred.`,
-						Type:        luadoc.String,
-						Optional:    true,
 					},
 				},
 			},
