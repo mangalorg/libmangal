@@ -28,6 +28,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mvdan/xurls v1.1.0 // indirect
 	github.com/pdfcpu/pdfcpu v0.4.1 // indirect
+	github.com/philippgille/gokv/bbolt v0.6.0 // indirect
 	github.com/philippgille/gokv/encoding v0.6.0 // indirect
 	github.com/philippgille/gokv/util v0.6.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -43,6 +44,7 @@ require (
 	github.com/yuin/gluamapper v0.0.0-20150323120927-d836955830e7 // indirect
 	github.com/yuin/gopher-lua v1.1.0 // indirect
 	github.com/zyedidia/generic v1.2.1 // indirect
+	go.etcd.io/bbolt v1.3.3 // indirect
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1 // indirect
 	golang.org/x/image v0.5.0 // indirect
 	golang.org/x/mod v0.9.0 // indirect

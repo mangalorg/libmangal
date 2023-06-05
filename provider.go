@@ -40,7 +40,7 @@ func (p *Provider) Load(ctx context.Context) error {
 	}
 
 	p.client.options.Log(fmt.Sprintf("Compiling provider %q", p.info.Name))
-	state := vm.NewState(vm.Options{
+	state := vm.NewState(&vm.Options{
 		HTTPClient: p.client.options.HTTPClient,
 		HTTPStore:  p.httpStore,
 		FS:         p.client.options.FS,
@@ -421,6 +421,12 @@ func (p *Provider) pageReader(ctx context.Context, page *Page) (io.Reader, error
 	if page.Headers != nil {
 		for key, value := range page.Headers {
 			request.Header.Set(key, value)
+		}
+	}
+
+	if page.Cookies != nil {
+		for key, value := range page.Cookies {
+			request.AddCookie(&http.Cookie{Name: key, Value: value})
 		}
 	}
 

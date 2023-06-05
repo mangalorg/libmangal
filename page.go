@@ -24,7 +24,7 @@ type Page struct {
 	// string is used instead of []byte because lua cannot handle []byte.
 	Data string
 
-	Headers map[string]string
+	Headers, Cookies map[string]string
 
 	Extension string
 

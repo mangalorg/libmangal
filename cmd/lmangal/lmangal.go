@@ -6,22 +6,43 @@ import (
 	"github.com/mangalorg/libmangal"
 	"github.com/mangalorg/libmangal/vm"
 	"github.com/mangalorg/libmangal/vm/lib"
-	"github.com/spf13/afero"
+	"github.com/philippgille/gokv"
+	"github.com/philippgille/gokv/bbolt"
 	"github.com/spf13/cobra"
 	"os"
 )
 
-var client = libmangal.NewClient(libmangal.ClientOptions{
-	FS: afero.NewOsFs(),
-	Log: func(s string) {
+var client = newClient()
+
+func newClient() *libmangal.Client {
+	options := libmangal.DefaultClientOptions()
+	options.Log = func(s string) {
 		fmt.Println(s)
-	},
-})
+	}
+
+	newPersistentStore := func(name string) gokv.Store {
+		options := bbolt.DefaultOptions
+		options.BucketName = name
+		options.Path = name + ".db"
+
+		store, err := bbolt.NewStore(options)
+		if err != nil {
+			panic("cannot create persistent store")
+		}
+
+		return store
+	}
+
+	options.Anilist.QueryToIdsStore = newPersistentStore("query-to-ids")
+	options.Anilist.TitleToIdStore = newPersistentStore("title-to-id")
+	options.Anilist.IdToMangaStore = newPersistentStore("id-to-manga")
+
+	return libmangal.NewClient(options)
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "lmangal",
 	Short: "lmangal is a command line tool for libmangal",
-	Long:  `lmangal is a command line tool for libmangal`,
 	Args:  cobra.NoArgs,
 }
 
@@ -199,7 +220,7 @@ var docCmd = &cobra.Command{
 	Short: "Generate documentation",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		doc := lib.Lib(vm.NewState(vm.Options{}), lib.Options{}).LuaDoc()
+		doc := lib.Lib(vm.NewState(vm.DefaultOptions()), lib.DefaultOptions()).LuaDoc()
 
 		fmt.Println(doc)
 	},
@@ -231,6 +252,7 @@ var anilistSearchCmd = &cobra.Command{
 			}
 
 			fmt.Println(manga)
+			fmt.Println(manga.Description)
 			return nil
 		}
 

@@ -124,7 +124,34 @@ func (c *Client) AnilistSearchManga(
 	ctx context.Context,
 	query string,
 ) ([]*AnilistManga, error) {
+	query = unifyString(query)
+
 	c.options.Log("Searching manga on Anilist...")
+
+	{
+		var ids []int
+		found, err := c.options.Anilist.QueryToIdsStore.Get(query, &ids)
+		if err != nil {
+			_ = c.options.Anilist.QueryToIdsStore.Delete(query)
+		} else if found {
+			mangas := lo.FilterMap(ids, func(id, _ int) (*AnilistManga, bool) {
+				var manga *AnilistManga
+				found, err := c.options.Anilist.IdToMangaStore.Get(strconv.Itoa(id), &manga)
+
+				return manga, found && err == nil
+			})
+
+			if len(mangas) == 0 {
+				_ = c.options.Anilist.QueryToIdsStore.Delete(query)
+				return c.AnilistSearchManga(ctx, query)
+			}
+
+			c.options.Log("Found in cache")
+			return mangas, nil
+		}
+
+		c.options.Log("Not found in cache")
+	}
 
 	body := anilistRequestBody{
 		Query: anilistQuerySearchByName,
@@ -197,19 +224,58 @@ func (c *Client) AnilistSearchManga(
 
 	c.options.Log(fmt.Sprintf("Found %d manga(s) on Anilist.", len(mangas)))
 
+	{
+		var ids = make([]int, len(mangas))
+
+		for i, manga := range mangas {
+			id := manga.ID
+			ids[i] = id
+			_ = c.options.Anilist.IdToMangaStore.Set(strconv.Itoa(id), manga)
+		}
+
+		_ = c.options.Anilist.QueryToIdsStore.Set(query, ids)
+	}
+
 	return mangas, nil
 }
 
 func unifyString(s string) string {
-	return strings.ToLower(strings.ReplaceAll(s, " ", ""))
+	return strings.ToLower(strings.TrimSpace(s))
 }
 
 func (c *Client) AnilistFindClosestManga(
 	ctx context.Context,
 	title string,
 ) (*AnilistManga, error) {
+	c.options.Log("Finding closest manga on Anilist...")
+
 	title = unifyString(title)
-	return c.anilistFindClosestManga(ctx, title, title, 3, 0, 3)
+
+	{
+		var id int
+		found, err := c.options.Anilist.TitleToIdStore.Get(title, &id)
+		if err != nil {
+			_ = c.options.Anilist.TitleToIdStore.Delete(title)
+		} else if found {
+			var manga *AnilistManga
+			found, _ = c.options.Anilist.IdToMangaStore.Get(strconv.Itoa(id), &manga)
+			// TODO: handle error, maybe
+			if found {
+				c.options.Log("Found in cache")
+				return manga, nil
+			}
+		}
+
+		c.options.Log("Not found in cache")
+	}
+
+	manga, err := c.anilistFindClosestManga(ctx, title, title, 3, 0, 3)
+	if err != nil {
+		return nil, err
+	}
+
+	_ = c.options.Anilist.TitleToIdStore.Set(title, manga.ID)
+	return manga, nil
 }
 
 func (c *Client) anilistFindClosestManga(

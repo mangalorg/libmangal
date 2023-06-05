@@ -26,23 +26,15 @@ type Options struct {
 	FS         afero.Fs
 }
 
-func (o *Options) fillDefaults() {
-	if o.HTTPClient == nil {
-		o.HTTPClient = &http.Client{}
-	}
-
-	if o.FS == nil {
-		o.FS = afero.NewMemMapFs()
-	}
-
-	if o.HTTPStore == nil {
-		o.HTTPStore = syncmap.NewStore(syncmap.DefaultOptions)
+func DefaultOptions() *Options {
+	return &Options{
+		HTTPClient: &http.Client{},
+		HTTPStore:  syncmap.NewStore(syncmap.DefaultOptions),
+		FS:         afero.NewMemMapFs(),
 	}
 }
 
-func Lib(L *lua.LState, options Options) *luadoc.Lib {
-	options.fillDefaults()
-
+func Lib(L *lua.LState, options *Options) *luadoc.Lib {
 	return &luadoc.Lib{
 		Name:        "libmangal",
 		Description: `libmangal lua SDK. Contains various utilities for making HTTP requests, working with JSON, HTML, and more.`,
@@ -65,7 +57,7 @@ func Lib(L *lua.LState, options Options) *luadoc.Lib {
 	}
 }
 
-func Preload(L *lua.LState, options Options) {
+func Preload(L *lua.LState, options *Options) {
 	lib := Lib(L, options)
 	L.PreloadModule(lib.Name, lib.Loader())
 }

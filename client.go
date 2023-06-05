@@ -20,11 +20,9 @@ func sanitizePath(path string) string {
 	return regexp.MustCompile(`_+`).ReplaceAllString(path, "_")
 }
 
-func NewClient(options ClientOptions) *Client {
-	options.fillDefaults()
-
+func NewClient(options *ClientOptions) *Client {
 	client := &Client{
-		options: &options,
+		options: options,
 	}
 
 	return client

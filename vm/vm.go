@@ -15,23 +15,15 @@ type Options struct {
 	FS         afero.Fs
 }
 
-func (o *Options) fillDefaults() {
-	if o.HTTPClient == nil {
-		o.HTTPClient = &http.Client{}
-	}
-
-	if o.FS == nil {
-		o.FS = afero.NewMemMapFs()
-	}
-
-	if o.HTTPStore == nil {
-		o.HTTPStore = syncmap.NewStore(syncmap.DefaultOptions)
+func DefaultOptions() *Options {
+	return &Options{
+		HTTPClient: &http.Client{},
+		HTTPStore:  syncmap.NewStore(syncmap.DefaultOptions),
+		FS:         afero.NewMemMapFs(),
 	}
 }
 
-func NewState(options Options) *lua.LState {
-	options.fillDefaults()
-
+func NewState(options *Options) *lua.LState {
 	libs := []lua.LGFunction{
 		lua.OpenBase,
 		lua.OpenTable,
@@ -51,7 +43,7 @@ func NewState(options Options) *lua.LState {
 		injectLib(state)
 	}
 
-	lib.Preload(state, lib.Options{
+	lib.Preload(state, &lib.Options{
 		HTTPClient: options.HTTPClient,
 		FS:         options.FS,
 		HTTPStore:  options.HTTPStore,

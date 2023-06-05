@@ -2,6 +2,8 @@ package libmangal
 
 import (
 	"fmt"
+	"github.com/philippgille/gokv"
+	"github.com/philippgille/gokv/syncmap"
 	"github.com/spf13/afero"
 	"net/http"
 	"strconv"
@@ -17,6 +19,20 @@ type ReadOptions struct {
 	Format Format
 }
 
+type AnilistOptions struct {
+	QueryToIdsStore gokv.Store
+	TitleToIdStore  gokv.Store
+	IdToMangaStore  gokv.Store
+}
+
+func DefaultAnilistOptions() *AnilistOptions {
+	return &AnilistOptions{
+		QueryToIdsStore: syncmap.NewStore(syncmap.DefaultOptions),
+		TitleToIdStore:  syncmap.NewStore(syncmap.DefaultOptions),
+		IdToMangaStore:  syncmap.NewStore(syncmap.DefaultOptions),
+	}
+}
+
 type ClientOptions struct {
 	HTTPClient *http.Client
 	FS         afero.Fs
@@ -26,20 +42,14 @@ type ClientOptions struct {
 
 	Log func(string)
 
-	// TODO: add anilist options
+	Anilist *AnilistOptions
 }
 
-func (o *ClientOptions) fillDefaults() {
-	if o.HTTPClient == nil {
-		o.HTTPClient = &http.Client{}
-	}
-
-	if o.FS == nil {
-		o.FS = afero.NewOsFs()
-	}
-
-	if o.ChapterNameTemplate == nil {
-		o.ChapterNameTemplate = func(data ChapterNameData) string {
+func DefaultClientOptions() *ClientOptions {
+	return &ClientOptions{
+		HTTPClient: &http.Client{},
+		FS:         afero.NewOsFs(),
+		ChapterNameTemplate: func(data ChapterNameData) string {
 			var numStr string
 
 			asInt, err := strconv.ParseInt(data.Number, 10, 64)
@@ -55,16 +65,11 @@ func (o *ClientOptions) fillDefaults() {
 			}
 
 			return sanitizePath(fmt.Sprintf("[%s] %s", numStr, data.Title))
-		}
-	}
-
-	if o.MangaNameTemplate == nil {
-		o.MangaNameTemplate = func(data MangaNameData) string {
+		},
+		MangaNameTemplate: func(data MangaNameData) string {
 			return sanitizePath(data.Title)
-		}
-	}
-
-	if o.Log == nil {
-		o.Log = func(string) {}
+		},
+		Log:     func(string) {},
+		Anilist: DefaultAnilistOptions(),
 	}
 }
