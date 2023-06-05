@@ -139,6 +139,7 @@ var runCmd = &cobra.Command{
 						downloadOptions := libmangal.DefaultDownloadOptions()
 						downloadOptions.Format = format
 						downloadOptions.WriteSeriesJson = true
+						downloadOptions.WriteComicInfoXml = true
 
 						_, err = provider.DownloadChapter(context.Background(), chapter, ".", downloadOptions)
 						if err != nil {

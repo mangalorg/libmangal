@@ -101,11 +101,14 @@ func DefaultClientOptions() *ClientOptions {
 }
 
 type ComicInfoOptions struct {
-	AddDate         bool
+	// AddDate whether to add series release date or not
+	AddDate bool
+
+	// AlternativeDate use other date
 	AlternativeDate *Date
 
 	// TagRelevanceThreshold is the minimum relevance of a tag
-	// to be added to ComicInfo.xml file. From 0 to 100
+	// to be added to ComicInfoXml.xml file. From 0 to 100
 	TagRelevanceThreshold int
 }
 

@@ -315,7 +315,8 @@ func (p *Provider) DownloadChapter(
 	}
 
 	if options.WriteSeriesJson {
-		exists, err := afero.Exists(p.client.options.FS, filepath.Join(mangaPath, "series.json"))
+		// skip if series.json already exists where it needs to be
+		exists, err := afero.Exists(p.client.options.FS, filepath.Join(mangaPath, seriesJsonFilename))
 		if err != nil {
 			return "", err
 		}
@@ -324,7 +325,9 @@ func (p *Provider) DownloadChapter(
 			goto renameChapter
 		}
 
-		exists, err = afero.Exists(p.client.options.FS, filepath.Join(mangaTempPath, "series.json"))
+		// check if series.json was created in the temp dir
+		// generally, should be always true but worth checking
+		exists, err = afero.Exists(p.client.options.FS, filepath.Join(mangaTempPath, seriesJsonFilename))
 		if err != nil {
 			return "", err
 		}
@@ -333,9 +336,10 @@ func (p *Provider) DownloadChapter(
 			goto renameChapter
 		}
 
+		// move series.json from the temp directory to the target
 		err = p.client.options.FS.Rename(
-			filepath.Join(mangaTempPath, "series.json"),
-			filepath.Join(mangaPath, "series.json"),
+			filepath.Join(mangaTempPath, seriesJsonFilename),
+			filepath.Join(mangaPath, seriesJsonFilename),
 		)
 
 		if err != nil {
@@ -397,14 +401,14 @@ func (p *Provider) downloadChapter(
 	case FormatPDF:
 		err = p.savePDF(downloadedPages, path)
 	case FormatCBZ:
-		var comicInfo *ComicInfo
+		var comicInfo *ComicInfoXml
 		if options.WriteComicInfoXml {
 			chapter, err := p.client.MakeChapterWithAnilist(ctx, chapter)
 			if err != nil {
 				return err
 			}
 
-			comicInfo = chapter.ComicInfo(options.ComicInfoOptions)
+			comicInfo = chapter.ComicInfoXml(options.ComicInfoOptions)
 		}
 
 		err = p.saveCBZ(downloadedPages, path, comicInfo)
@@ -423,7 +427,7 @@ func (p *Provider) downloadChapter(
 		}
 
 		seriesJson := manga.SeriesJson()
-		seriesJsonPath := filepath.Join(filepath.Dir(path), "series.json")
+		seriesJsonPath := filepath.Join(filepath.Dir(path), seriesJsonFilename)
 
 		marshalled, err := json.Marshal(seriesJson)
 		if err != nil {
@@ -454,7 +458,7 @@ func (p *Provider) downloadPages(
 		i, page := i, page
 		g.Go(func() error {
 			p.client.options.Log(fmt.Sprintf("Page #%03d: downloading", i+1))
-			reader, err := p.pageReader(ctx, page)
+			reader, err := p.pageToReader(ctx, page)
 			if err != nil {
 				return err
 			}
@@ -503,7 +507,7 @@ func (p *Provider) savePDF(
 func (p *Provider) saveCBZ(
 	pages []*downloadedPage,
 	path string,
-	comicInfoXml *ComicInfo,
+	comicInfoXml *ComicInfoXml,
 ) error {
 	p.client.options.Log(fmt.Sprintf("Saving %d pages as CBZ", len(pages)))
 
@@ -543,13 +547,13 @@ func (p *Provider) saveCBZ(
 	}
 
 	if comicInfoXml != nil {
-		marshalled, err := xml.Marshal(comicInfoXml)
+		marshalled, err := xml.MarshalIndent(comicInfoXml, "", "  ")
 		if err != nil {
 			return err
 		}
 
 		writer, err := zipWriter.CreateHeader(&zip.FileHeader{
-			Name:   "ComicInfo.xml",
+			Name:   comicInfoXmlFilename,
 			Method: zip.Store,
 		})
 		if err != nil {
@@ -600,7 +604,7 @@ func (p *Provider) saveImages(
 	return nil
 }
 
-func (p *Provider) pageReader(ctx context.Context, page *Page) (io.Reader, error) {
+func (p *Provider) pageToReader(ctx context.Context, page *Page) (io.Reader, error) {
 	if page.Data != "" {
 		return strings.NewReader(page.Data), nil
 	}
@@ -652,7 +656,7 @@ func (p *Provider) ReadChapter(ctx context.Context, chapter *Chapter, options *R
 
 	var chapterPath string
 	if options.MangasLibraryPath != "" {
-		path, ok := p.isChapterDownloaded(options.MangasLibraryPath, chapter, options.Format)
+		path, ok := p.IsChapterDownloaded(options.MangasLibraryPath, chapter, options.Format)
 		if ok {
 			p.client.options.Log(fmt.Sprintf("Chapter %q is already downloaded", chapter.Title))
 			chapterPath = path
@@ -679,12 +683,15 @@ func (p *Provider) ReadChapter(ctx context.Context, chapter *Chapter, options *R
 		return err
 	}
 
-	// TODO: history
+	// TODO: history?
 
 	return nil
 }
 
-func (p *Provider) isChapterDownloaded(
+// IsChapterDownloaded checks if a chapter of a manga has been
+// downloaded in the specified format. It does this by checking
+// if the file exists in the directory specified by the dir parameter.
+func (p *Provider) IsChapterDownloaded(
 	dir string,
 	chapter *Chapter,
 	format Format,

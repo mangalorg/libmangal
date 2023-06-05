@@ -6,12 +6,19 @@ import (
 	"strings"
 )
 
-type ComicInfo struct {
+const (
+	comicInfoXmlFilename = "ComicInfo.xml"
+	seriesJsonFilename   = "series.json"
+)
+
+// ComicInfoXml contains metadata information about a comic book.
+// It is often used by comic book readers and management software
+// to organize and display information about comic books in a library or collection.
+type ComicInfoXml struct {
 	XMLName  xml.Name `xml:"ComicInfo"`
 	XmlnsXsi string   `xml:"xmlns:xsi,attr"`
 	XmlnsXsd string   `xml:"xmlns:xsd,attr"`
 
-	// General
 	Title      string `xml:"Title,omitempty"`
 	Series     string `xml:"Series,omitempty"`
 	Number     string `xml:"Number,omitempty"`
@@ -33,6 +40,8 @@ type ComicInfo struct {
 	Manga      string `xml:"Manga,omitempty"`
 }
 
+// SeriesJson is similar to ComicInfoXml but designed for
+// the series as a whole rather than a single chapter
 type SeriesJson struct {
 	Metadata struct {
 		Type                 string `json:"type"`
@@ -97,7 +106,7 @@ type ChapterOfMangaWithAnilist struct {
 	*MangaWithAnilist
 }
 
-func (c *ChapterOfMangaWithAnilist) ComicInfo(options *ComicInfoOptions) *ComicInfo {
+func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options *ComicInfoOptions) *ComicInfoXml {
 	var characters = make([]string, len(c.MangaWithAnilist.Characters.Nodes))
 	for i, node := range c.MangaWithAnilist.Characters.Nodes {
 		characters[i] = node.Name.Full
@@ -134,16 +143,16 @@ func (c *ChapterOfMangaWithAnilist) ComicInfo(options *ComicInfoOptions) *ComicI
 		}
 	}
 
-	var tags = make([]string, len(c.AnilistManga.Tags))
-	for i, tag := range c.MangaWithAnilist.Tags {
+	var tags = make([]string, 0)
+	for _, tag := range c.MangaWithAnilist.Tags {
 		if tag.Rank < options.TagRelevanceThreshold {
 			continue
 		}
 
-		tags[i] = tag.Name
+		tags = append(tags, tag.Name)
 	}
 
-	return &ComicInfo{
+	return &ComicInfoXml{
 		XmlnsXsd:   "http://www.w3.org/2001/XMLSchema",
 		XmlnsXsi:   "http://www.w3.org/2001/XMLSchema-instance",
 		Title:      c.Title,
