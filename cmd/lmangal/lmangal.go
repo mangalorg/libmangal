@@ -136,11 +136,11 @@ var runCmd = &cobra.Command{
 							return err
 						}
 
-						_, err = provider.DownloadChapter(context.Background(), chapter, ".", libmangal.DownloadOptions{
-							Format:         format,
-							CreateMangaDir: true,
-							SkipIfExists:   true,
-						})
+						downloadOptions := libmangal.DefaultDownloadOptions()
+						downloadOptions.Format = format
+						downloadOptions.WriteSeriesJson = true
+
+						_, err = provider.DownloadChapter(context.Background(), chapter, ".", downloadOptions)
 						if err != nil {
 							return err
 						}
@@ -151,9 +151,10 @@ var runCmd = &cobra.Command{
 							return err
 						}
 
-						err = provider.ReadChapter(context.Background(), chapter, libmangal.ReadOptions{
-							Format: format,
-						})
+						readOptions := libmangal.DefaultReadOptions()
+						readOptions.Format = format
+						readOptions.MangasLibraryPath = "."
+						err = provider.ReadChapter(context.Background(), chapter, readOptions)
 
 						if err != nil {
 							return err

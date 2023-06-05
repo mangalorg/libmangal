@@ -31,10 +31,18 @@ func DefaultDownloadOptions() *DownloadOptions {
 
 type ReadOptions struct {
 	Format Format
+
+	// MangasLibraryPath is the path to the directory where mangas are stored.
+	// Will be used to see if the given chapter is already downloaded,
+	// so it will be opened instead
+	MangasLibraryPath string
 }
 
 func DefaultReadOptions() *ReadOptions {
-	return &ReadOptions{Format: FormatPDF}
+	return &ReadOptions{
+		Format:            FormatPDF,
+		MangasLibraryPath: "",
+	}
 }
 
 type AnilistOptions struct {
@@ -96,7 +104,8 @@ type ComicInfoOptions struct {
 	AddDate         bool
 	AlternativeDate *Date
 
-	// TagRelevanceThreshold is the minimum relevance of a tag to be added to ComicInfo.xml file. From 0 to 100
+	// TagRelevanceThreshold is the minimum relevance of a tag
+	// to be added to ComicInfo.xml file. From 0 to 100
 	TagRelevanceThreshold int
 }
 

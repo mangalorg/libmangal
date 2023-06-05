@@ -241,7 +241,7 @@ func (p *Provider) DownloadChapter(
 	ctx context.Context,
 	chapter *Chapter,
 	dir string,
-	options DownloadOptions,
+	options *DownloadOptions,
 ) (string, error) {
 	if !options.Format.IsAFormat() {
 		return "", fmt.Errorf("unsupported format")
@@ -249,30 +249,21 @@ func (p *Provider) DownloadChapter(
 
 	p.client.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter.Title, options.Format.String()))
 
-	chapterPath, isDir := p.computeChapterPath(chapter, options.Format, options.CreateMangaDir)
-	finalPath := filepath.Join(dir, chapterPath)
+	mangaFilename, chapterFilename := p.computeFilenames(chapter, options.Format)
 
-	exists, err := afero.Exists(p.client.options.FS, finalPath)
+	var (
+		mangaPath   = filepath.Join(dir, mangaFilename)
+		chapterPath = filepath.Join(mangaPath, chapterFilename)
+	)
+
+	exists, err := afero.Exists(p.client.options.FS, chapterPath)
 	if err != nil {
-		return chapterPath, nil
+		return chapterFilename, nil
 	}
 
-	if exists {
-		if options.SkipIfExists {
-			p.client.options.Log(fmt.Sprintf("Chapter %q already exists, skipping", chapter.Title))
-			return chapterPath, nil
-		}
-
-		p.client.options.Log(fmt.Sprintf("Chapter %q already exists, removing", chapter.Title))
-		if isDir {
-			err = p.client.options.FS.RemoveAll(finalPath)
-		} else {
-			err = p.client.options.FS.Remove(finalPath)
-		}
-
-		if err != nil {
-			return "", err
-		}
+	if exists && options.SkipIfExists {
+		p.client.options.Log(fmt.Sprintf("Chapter %q already exists, skipping", chapter.Title))
+		return chapterFilename, nil
 	}
 
 	// create a temp dir where chapter will be downloaded.
@@ -282,35 +273,83 @@ func (p *Provider) DownloadChapter(
 		return "", err
 	}
 
-	tempPath := filepath.Join(tempDir, chapterPath)
+	var (
+		mangaTempPath   = filepath.Join(tempDir, mangaFilename)
+		chapterTempPath = filepath.Join(mangaTempPath, chapterFilename)
+	)
 
 	if options.CreateMangaDir {
-		mangaDir := filepath.Join(tempDir, filepath.Dir(chapterPath))
-		err = p.client.options.FS.MkdirAll(mangaDir, 0755)
+		err = p.client.options.FS.MkdirAll(mangaTempPath, 0755)
 		if err != nil {
 			return "", err
 		}
 	}
 
-	err = p.downloadChapter(ctx, chapter, tempPath, options)
+	err = p.downloadChapter(ctx, chapter, chapterTempPath, options)
 	if err != nil {
 		return "", err
 	}
 
 	if options.CreateMangaDir {
-		mangaDir := filepath.Join(dir, filepath.Dir(chapterPath))
-		err = p.client.options.FS.MkdirAll(mangaDir, 0755)
+		err = p.client.options.FS.MkdirAll(mangaPath, 0755)
 		if err != nil {
 			return "", err
 		}
 	}
 
-	// move to the original location
-	err = p.client.options.FS.Rename(
-		tempPath,
-		finalPath,
-	)
+	if exists {
+		p.client.options.Log(fmt.Sprintf("Chapter %q already exists, removing", chapter.Title))
+		if options.Format == FormatImages {
+			err = p.client.options.FS.RemoveAll(chapterPath)
+		} else {
+			err = p.client.options.FS.Remove(chapterPath)
+		}
 
+		if err != nil {
+			return "", err
+		}
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	if options.WriteSeriesJson {
+		exists, err := afero.Exists(p.client.options.FS, filepath.Join(mangaPath, "series.json"))
+		if err != nil {
+			return "", err
+		}
+
+		if exists {
+			goto renameChapter
+		}
+
+		exists, err = afero.Exists(p.client.options.FS, filepath.Join(mangaTempPath, "series.json"))
+		if err != nil {
+			return "", err
+		}
+
+		if !exists {
+			goto renameChapter
+		}
+
+		err = p.client.options.FS.Rename(
+			filepath.Join(mangaTempPath, "series.json"),
+			filepath.Join(mangaPath, "series.json"),
+		)
+
+		if err != nil {
+			return "", err
+		}
+	}
+
+renameChapter:
+	// move to the original location
+	// only after everything else was successful
+	err = p.client.options.FS.Rename(
+		chapterTempPath,
+		chapterPath,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -318,30 +357,31 @@ func (p *Provider) DownloadChapter(
 	return chapterPath, nil
 }
 
-func (p *Provider) computeChapterPath(chapter *Chapter, format Format, createMangaDir bool) (path string, isDir bool) {
-	if createMangaDir {
-		path = p.client.options.MangaNameTemplate(chapter.manga.NameData())
+func (p *Provider) computeFilenames(
+	chapter *Chapter,
+	format Format,
+) (mangaFilename, chapterFilename string) {
+	mangaFilename = p.client.options.MangaNameTemplate(chapter.manga.NameData())
+	chapterFilename = p.client.options.ChapterNameTemplate(chapter.NameData())
+
+	extensions := map[Format]string{
+		FormatPDF: ".pdf",
+		FormatCBZ: ".cbz",
 	}
 
-	path = filepath.Join(path, p.client.options.ChapterNameTemplate(chapter.NameData()))
-
-	switch format {
-	case FormatPDF:
-		path += ".pdf"
-	case FormatCBZ:
-		path += ".cbz"
-	case FormatImages:
-		isDir = true
+	extension, ok := extensions[format]
+	if ok {
+		chapterFilename += extension
 	}
 
-	return path, isDir
+	return mangaFilename, chapterFilename
 }
 
 func (p *Provider) downloadChapter(
 	ctx context.Context,
 	chapter *Chapter,
 	path string,
-	options DownloadOptions,
+	options *DownloadOptions,
 ) error {
 	pages, err := p.ChapterPages(ctx, chapter)
 	if err != nil {
@@ -400,12 +440,15 @@ func (p *Provider) downloadChapter(
 	return nil
 }
 
-func (p *Provider) downloadPages(ctx context.Context, pages []*Page) ([]*downloadedPage, error) {
+func (p *Provider) downloadPages(
+	ctx context.Context,
+	pages []*Page,
+) ([]*downloadedPage, error) {
 	p.client.options.Log(fmt.Sprintf("Downloading %d pages", len(pages)))
 
 	g, _ := errgroup.WithContext(ctx)
 
-	var downloadedPages = make([]*downloadedPage, len(pages))
+	downloadedPages := make([]*downloadedPage, len(pages))
 
 	for i, page := range pages {
 		i, page := i, page
@@ -604,27 +647,34 @@ func (p *Provider) pageReader(ctx context.Context, page *Page) (io.Reader, error
 	return bytes.NewReader(buffer), nil
 }
 
-func (p *Provider) ReadChapter(ctx context.Context, chapter *Chapter, options ReadOptions) error {
+func (p *Provider) ReadChapter(ctx context.Context, chapter *Chapter, options *ReadOptions) error {
 	p.client.options.Log(fmt.Sprintf("Reading chapter %q as %s", chapter.Title, options.Format))
 
-	p.client.options.Log(fmt.Sprintf("Creating temp dir"))
-	tempDir, err := afero.TempDir(p.client.options.FS, "", "libmangal")
-	if err != nil {
-		return err
+	var chapterPath string
+	if options.MangasLibraryPath != "" {
+		path, ok := p.isChapterDownloaded(options.MangasLibraryPath, chapter, options.Format)
+		if ok {
+			p.client.options.Log(fmt.Sprintf("Chapter %q is already downloaded", chapter.Title))
+			chapterPath = path
+		}
 	}
 
-	path, err := p.DownloadChapter(ctx, chapter, tempDir, DownloadOptions{
-		Format:         options.Format,
-		CreateMangaDir: true,
-		SkipIfExists:   true,
-	})
-	if err != nil {
-		return err
+	if chapterPath == "" {
+		p.client.options.Log(fmt.Sprintf("Creating temp dir"))
+		tempDir, err := afero.TempDir(p.client.options.FS, "", "libmangal")
+		if err != nil {
+			return err
+		}
+
+		downloadOptions := DefaultDownloadOptions()
+		chapterPath, err = p.DownloadChapter(ctx, chapter, tempDir, downloadOptions)
+		if err != nil {
+			return err
+		}
 	}
 
-	path = filepath.Join(tempDir, path)
-	p.client.options.Log(fmt.Sprintf("Opening chapter %q with default app", path))
-	err = open.Run(path)
+	p.client.options.Log(fmt.Sprintf("Opening chapter %q with default app", chapter.Title))
+	err := open.Run(chapterPath)
 	if err != nil {
 		return err
 	}
@@ -632,4 +682,36 @@ func (p *Provider) ReadChapter(ctx context.Context, chapter *Chapter, options Re
 	// TODO: history
 
 	return nil
+}
+
+func (p *Provider) isChapterDownloaded(
+	dir string,
+	chapter *Chapter,
+	format Format,
+) (downloadedPath string, isDownloaded bool) {
+	mangaFilename, chapterFilename := p.computeFilenames(chapter, format)
+
+	isExist := func(path string) bool {
+		exists, err := afero.Exists(
+			p.client.options.FS,
+			filepath.Join(path),
+		)
+
+		return exists && err == nil
+	}
+
+	var path string
+
+	path = filepath.Join(dir, mangaFilename, chapterFilename)
+	if isExist(path) {
+		return path, true
+	}
+
+	// try without manga folder
+	path = filepath.Join(dir, chapterFilename)
+	if isExist(path) {
+		return path, true
+	}
+
+	return "", false
 }
