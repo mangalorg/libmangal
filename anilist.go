@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	levenshtein "github.com/ka-weihe/fast-levenshtein"
 	"github.com/samber/lo"
 	"net/http"
 	"strconv"
@@ -310,18 +309,13 @@ func (c *Client) anilistFindClosestManga(
 	}
 
 	// find the closest match
-	closest := lo.MinBy(mangas, func(a, b *AnilistManga) bool {
-		return levenshtein.Distance(
-			currentTitle,
-			unifyString(a.String()),
-		) < levenshtein.Distance(
-			currentTitle,
-			unifyString(b.String()),
-		)
-	})
+	closest, ok := c.options.Anilist.GetClosestManga(currentTitle, mangas)
+
+	if !ok {
+		return nil, fmt.Errorf("closest manga to %q wasn't found on anilist", originalTitle)
+	}
 
 	c.options.Log(fmt.Sprintf("Found closest manga on Anilist: %q #%d", closest.String(), closest.ID))
-
 	return closest, nil
 }
 

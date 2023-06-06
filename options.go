@@ -2,8 +2,10 @@ package libmangal
 
 import (
 	"fmt"
+	levenshtein "github.com/ka-weihe/fast-levenshtein"
 	"github.com/philippgille/gokv"
 	"github.com/philippgille/gokv/syncmap"
+	"github.com/samber/lo"
 	"github.com/spf13/afero"
 	"net/http"
 	"strconv"
@@ -49,6 +51,15 @@ type AnilistOptions struct {
 	QueryToIdsStore gokv.Store
 	TitleToIdStore  gokv.Store
 	IdToMangaStore  gokv.Store
+
+	// GetClosestManga is the function that will be used
+	// to get the most similar manga from Anilist
+	// based on the passed title.
+	// If there's no such manga ok will be false
+	GetClosestManga func(
+		title string,
+		anilistMangas []*AnilistManga,
+	) (closest *AnilistManga, ok bool)
 }
 
 func DefaultAnilistOptions() *AnilistOptions {
@@ -56,6 +67,19 @@ func DefaultAnilistOptions() *AnilistOptions {
 		QueryToIdsStore: syncmap.NewStore(syncmap.DefaultOptions),
 		TitleToIdStore:  syncmap.NewStore(syncmap.DefaultOptions),
 		IdToMangaStore:  syncmap.NewStore(syncmap.DefaultOptions),
+
+		GetClosestManga: func(title string, anilistMangas []*AnilistManga) (*AnilistManga, bool) {
+			title = unifyString(title)
+			return lo.MinBy(anilistMangas, func(a, b *AnilistManga) bool {
+				return levenshtein.Distance(
+					title,
+					unifyString(a.String()),
+				) < levenshtein.Distance(
+					title,
+					unifyString(b.String()),
+				)
+			}), true
+		},
 	}
 }
 

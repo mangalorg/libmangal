@@ -2,7 +2,6 @@ package libmangal
 
 import (
 	"fmt"
-	browser "github.com/EDDYCJY/fake-useragent"
 	"github.com/pkg/errors"
 	"io"
 	"net/url"
@@ -67,7 +66,8 @@ func (p *Page) fillDefaults() {
 	if p.Headers == nil {
 		p.Headers = make(map[string]string)
 		p.Headers["Referer"] = p.chapter.Url
-		p.Headers["User-Agent"] = browser.Computer()
+		// TODO: generate random user-agent
+		p.Headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
 		p.Headers["Accept"] = "image/webp,image/apng,image/*,*/*;q=0.8"
 	}
 }
