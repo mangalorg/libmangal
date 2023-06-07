@@ -12,9 +12,8 @@ import (
 )
 
 type DownloadOptions struct {
-	Format         Format
-	CreateMangaDir bool
-	SkipIfExists   bool
+	Format       Format
+	SkipIfExists bool
 
 	DownloadMangaCover bool
 	WriteSeriesJson    bool
@@ -24,9 +23,8 @@ type DownloadOptions struct {
 
 func DefaultDownloadOptions() *DownloadOptions {
 	return &DownloadOptions{
-		Format:         FormatPDF,
-		CreateMangaDir: true,
-		SkipIfExists:   true,
+		Format:       FormatPDF,
+		SkipIfExists: true,
 
 		DownloadMangaCover: false,
 		WriteSeriesJson:    false,
@@ -91,8 +89,15 @@ type ClientOptions struct {
 	HTTPClient *http.Client
 	FS         afero.Fs
 
-	ChapterNameTemplate func(ChapterNameData) string
-	MangaNameTemplate   func(MangaNameData) string
+	ChapterNameTemplate func(
+		provider string,
+		data ChapterNameData,
+	) string
+
+	MangaNameTemplate func(
+		provider string,
+		data MangaNameData,
+	) string
 
 	Log func(string)
 
@@ -103,7 +108,7 @@ func DefaultClientOptions() *ClientOptions {
 	return &ClientOptions{
 		HTTPClient: &http.Client{},
 		FS:         afero.NewOsFs(),
-		ChapterNameTemplate: func(data ChapterNameData) string {
+		ChapterNameTemplate: func(_ string, data ChapterNameData) string {
 			var numStr string
 
 			asInt, err := strconv.ParseInt(data.Number, 10, 64)
@@ -120,7 +125,7 @@ func DefaultClientOptions() *ClientOptions {
 
 			return sanitizePath(fmt.Sprintf("[%s] %s", numStr, data.Title))
 		},
-		MangaNameTemplate: func(data MangaNameData) string {
+		MangaNameTemplate: func(_ string, data MangaNameData) string {
 			return sanitizePath(data.Title)
 		},
 		Log:     func(string) {},

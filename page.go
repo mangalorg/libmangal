@@ -8,7 +8,7 @@ import (
 	"regexp"
 )
 
-var fileExtensionRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.]*[a-zA-Z0-9]$`)
+var fileExtensionRegex = regexp.MustCompile(`^\.[a-zA-Z0-9][a-zA-Z0-9.]*[a-zA-Z0-9]$`)
 
 func errPage(err error) error {
 	return errors.Wrap(err, "page")
@@ -60,15 +60,16 @@ func (p *Page) validate() error {
 
 func (p *Page) fillDefaults() {
 	if p.Extension == "" {
-		p.Extension = "jpg"
+		p.Extension = ".jpg"
 	}
 
 	if p.Headers == nil {
 		p.Headers = make(map[string]string)
 		p.Headers["Referer"] = p.chapter.Url
+		p.Headers["Accept"] = "image/webp,image/apng,image/*,*/*;q=0.8"
+
 		// TODO: generate random user-agent
 		p.Headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
-		p.Headers["Accept"] = "image/webp,image/apng,image/*,*/*;q=0.8"
 	}
 }
 

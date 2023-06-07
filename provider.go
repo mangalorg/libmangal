@@ -33,6 +33,10 @@ func (p *Provider) Info() ProviderInfo {
 	return *p.info
 }
 
+func (p *Provider) String() string {
+	return p.info.Name
+}
+
 func (p *Provider) evalFunction(
 	ctx context.Context,
 	fn *lua.LFunction,
@@ -59,6 +63,7 @@ func (p *Provider) evalFunction(
 	return
 }
 
+// SearchMangas searches for mangas with the given query
 func (p *Provider) SearchMangas(
 	ctx context.Context,
 	query string,
@@ -97,6 +102,7 @@ func (p *Provider) SearchMangas(
 	return mangas, nil
 }
 
+// MangaChapters gets manga chapters
 func (p *Provider) MangaChapters(
 	ctx context.Context,
 	manga *Manga,
@@ -140,6 +146,7 @@ func (p *Provider) MangaChapters(
 	return chapters, nil
 }
 
+// ChapterPages gets chapter pages
 func (p *Provider) ChapterPages(
 	ctx context.Context,
 	chapter *Chapter,
@@ -180,6 +187,8 @@ func (p *Provider) ChapterPages(
 	return pages, nil
 }
 
+// DownloadChapter downloads and saves chapter to the specified
+// directory in the given format.
 func (p *Provider) DownloadChapter(
 	ctx context.Context,
 	chapter *Chapter,
@@ -192,7 +201,7 @@ func (p *Provider) DownloadChapter(
 
 	p.client.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter.Title, options.Format.String()))
 
-	mangaFilename, chapterFilename := p.computeFilenames(chapter, options.Format)
+	mangaFilename, chapterFilename := p.ComputeFilenames(chapter, options.Format)
 
 	var (
 		mangaPath   = filepath.Join(dir, mangaFilename)
@@ -221,11 +230,9 @@ func (p *Provider) DownloadChapter(
 		chapterTempPath = filepath.Join(mangaTempPath, chapterFilename)
 	)
 
-	if options.CreateMangaDir {
-		err = p.client.options.FS.MkdirAll(mangaTempPath, 0755)
-		if err != nil {
-			return "", err
-		}
+	err = p.client.options.FS.MkdirAll(mangaTempPath, 0755)
+	if err != nil {
+		return "", err
 	}
 
 	err = p.downloadChapter(ctx, chapter, chapterTempPath, options)
@@ -233,11 +240,9 @@ func (p *Provider) DownloadChapter(
 		return "", err
 	}
 
-	if options.CreateMangaDir {
-		err = p.client.options.FS.MkdirAll(mangaPath, 0755)
-		if err != nil {
-			return "", err
-		}
+	err = p.client.options.FS.MkdirAll(mangaPath, 0755)
+	if err != nil {
+		return "", err
 	}
 
 	if exists {
@@ -302,6 +307,11 @@ func (p *Provider) DownloadChapter(
 	return chapterPath, nil
 }
 
+// downloadCoverIfNotExists will download manga chapter
+// and save it as a cover.jpg in the specified directory.
+// It will also try to convert Manga to MangaWithAnilist
+// to obtain a better cover image. If it fails to do so,
+// then it will use Manga.CoverUrl.
 func (p *Provider) downloadCoverIfNotExists(
 	ctx context.Context,
 	manga *Manga,
@@ -357,6 +367,7 @@ func (p *Provider) downloadCoverIfNotExists(
 	)
 }
 
+// downloadChapter is a helper function for DownloadChapter
 func (p *Provider) downloadChapter(
 	ctx context.Context,
 	chapter *Chapter,
@@ -375,7 +386,7 @@ func (p *Provider) downloadChapter(
 
 	switch options.Format {
 	case FormatPDF:
-		err = p.savePDF(downloadedPages, path)
+		err = p.SavePDF(downloadedPages, path)
 	case FormatCBZ:
 		var comicInfo *ComicInfoXml
 		if options.WriteComicInfoXml {
@@ -387,9 +398,9 @@ func (p *Provider) downloadChapter(
 			comicInfo = chapter.ComicInfoXml(options.ComicInfoOptions)
 		}
 
-		err = p.saveCBZ(downloadedPages, path, comicInfo)
+		err = p.SaveCBZ(downloadedPages, path, comicInfo)
 	case FormatImages:
-		err = p.saveImages(downloadedPages, path)
+		err = p.SaveImages(downloadedPages, path)
 	}
 
 	if err != nil {
@@ -399,6 +410,10 @@ func (p *Provider) downloadChapter(
 	return nil
 }
 
+// DownloadPagesInBatch downloads multiple pages in batch
+// by calling DownloadPage for each page in a separate goroutines.
+// If any of the pages fails to download it will stop downloading other pages
+// and return error immediately
 func (p *Provider) DownloadPagesInBatch(
 	ctx context.Context,
 	pages []*Page,
@@ -433,7 +448,8 @@ func (p *Provider) DownloadPagesInBatch(
 	return downloadedPages, nil
 }
 
-func (p *Provider) savePDF(
+// SavePDF saves pages in FormatPDF
+func (p *Provider) SavePDF(
 	pages []*DownloadedPage,
 	path string,
 ) error {
@@ -456,7 +472,8 @@ func (p *Provider) savePDF(
 	return api.ImportImages(nil, file, images, nil, nil)
 }
 
-func (p *Provider) saveCBZ(
+// SaveCBZ saves pages in FormatCBZ
+func (p *Provider) SaveCBZ(
 	pages []*DownloadedPage,
 	path string,
 	comicInfoXml *ComicInfoXml,
@@ -484,7 +501,7 @@ func (p *Provider) saveCBZ(
 
 		var writer io.Writer
 		writer, err = zipWriter.CreateHeader(&zip.FileHeader{
-			Name:   fmt.Sprintf("%04d.%s", i+1, page.Extension),
+			Name:   fmt.Sprintf("%04d%s", i+1, page.Extension),
 			Method: zip.Store,
 		})
 
@@ -521,7 +538,8 @@ func (p *Provider) saveCBZ(
 	return nil
 }
 
-func (p *Provider) saveImages(
+// SaveImages saves pages in FormatImages
+func (p *Provider) SaveImages(
 	pages []*DownloadedPage,
 	path string,
 ) error {
@@ -540,7 +558,7 @@ func (p *Provider) saveImages(
 		}
 
 		var file afero.File
-		file, err = p.client.options.FS.Create(filepath.Join(path, fmt.Sprintf("%04d.%s", i+1, page.Extension)))
+		file, err = p.client.options.FS.Create(filepath.Join(path, fmt.Sprintf("%04d%s", i+1, page.Extension)))
 		if err != nil {
 			return err
 		}
@@ -556,6 +574,7 @@ func (p *Provider) saveImages(
 	return nil
 }
 
+// DownloadPage downloads a page contents (image)
 func (p *Provider) DownloadPage(ctx context.Context, page *Page) (*DownloadedPage, error) {
 	if page.Data != "" {
 		return &DownloadedPage{
@@ -609,12 +628,25 @@ func (p *Provider) DownloadPage(ctx context.Context, page *Page) (*DownloadedPag
 	}, nil
 }
 
+// ReadChapter downloads chapter to the temp directory and opens it with the
+// os default app for resulting mimetype.
+// E.g. `xdg-open` for Linux.
+//
+// Note: works only for afero.OsFs
 func (p *Provider) ReadChapter(ctx context.Context, chapter *Chapter, options *ReadOptions) error {
+	if p.client.options.FS.Name() != "OsFs" {
+		return fmt.Errorf("only OsFs is supported for reading")
+	}
+
 	p.client.options.Log(fmt.Sprintf("Reading chapter %q as %s", chapter.Title, options.Format))
 
 	var chapterPath string
 	if options.MangasLibraryPath != "" {
-		path, ok := p.IsChapterDownloaded(options.MangasLibraryPath, chapter, options.Format)
+		path, ok, err := p.IsChapterDownloaded(chapter, options.MangasLibraryPath, options.Format)
+		if err != nil {
+			return err
+		}
+
 		if ok {
 			p.client.options.Log(fmt.Sprintf("Chapter %q is already downloaded", chapter.Title))
 			chapterPath = path
@@ -628,8 +660,12 @@ func (p *Provider) ReadChapter(ctx context.Context, chapter *Chapter, options *R
 			return err
 		}
 
-		downloadOptions := DefaultDownloadOptions()
-		chapterPath, err = p.DownloadChapter(ctx, chapter, tempDir, downloadOptions)
+		chapterPath, err = p.DownloadChapter(
+			ctx,
+			chapter,
+			tempDir,
+			DefaultDownloadOptions(),
+		)
 		if err != nil {
 			return err
 		}
@@ -646,54 +682,42 @@ func (p *Provider) ReadChapter(ctx context.Context, chapter *Chapter, options *R
 	return nil
 }
 
-// IsChapterDownloaded checks if a chapter of a manga has been
-// downloaded in the specified format. It does this by checking
-// if the file exists in the directory specified by the dir parameter.
+// IsChapterDownloaded checks if chapter is downloaded.
+// It will simply check if path dir/manga/chapter exists
 func (p *Provider) IsChapterDownloaded(
-	dir string,
 	chapter *Chapter,
+	dir string,
 	format Format,
-) (downloadedPath string, isDownloaded bool) {
-	mangaFilename, chapterFilename := p.computeFilenames(chapter, format)
-
-	isExist := func(path string) bool {
-		exists, err := afero.Exists(
-			p.client.options.FS,
-			filepath.Join(path),
-		)
-
-		return exists && err == nil
-	}
-
-	var path string
+) (path string, ok bool, err error) {
+	mangaFilename, chapterFilename := p.ComputeFilenames(chapter, format)
 
 	path = filepath.Join(dir, mangaFilename, chapterFilename)
-	if isExist(path) {
-		return path, true
+
+	exists, err := afero.Exists(p.client.options.FS, path)
+	if err != nil {
+		return "", false, err
 	}
 
-	// try without manga folder
-	path = filepath.Join(dir, chapterFilename)
-	if isExist(path) {
-		return path, true
-	}
-
-	return "", false
+	return path, exists, nil
 }
 
-func (p *Provider) computeFilenames(
+// ComputeFilenames will apply name templates for chapter and manga
+// and return resulting strings.
+func (p *Provider) ComputeFilenames(
 	chapter *Chapter,
 	format Format,
 ) (mangaFilename, chapterFilename string) {
-	mangaFilename = p.client.options.MangaNameTemplate(chapter.manga.NameData())
-	chapterFilename = p.client.options.ChapterNameTemplate(chapter.NameData())
+	mangaFilename = p.client.options.MangaNameTemplate(
+		p.String(),
+		chapter.manga.NameData(),
+	)
 
-	extensions := map[Format]string{
-		FormatPDF: ".pdf",
-		FormatCBZ: ".cbz",
-	}
+	chapterFilename = p.client.options.ChapterNameTemplate(
+		p.String(),
+		chapter.NameData(),
+	)
 
-	extension, ok := extensions[format]
+	extension, ok := FormatExtensions[format]
 	if ok {
 		chapterFilename += extension
 	}

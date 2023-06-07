@@ -3,7 +3,7 @@ package libmangal
 import (
 	"fmt"
 	"github.com/pkg/errors"
-	lua "github.com/yuin/gopher-lua"
+	"github.com/yuin/gopher-lua"
 	"net/url"
 )
 
