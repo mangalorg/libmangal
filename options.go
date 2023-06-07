@@ -133,16 +133,6 @@ func DefaultClientOptions() *ClientOptions {
 	}
 }
 
-type ProviderLoadOptions struct {
-	HTTPStore gokv.Store
-}
-
-func DefaultProviderLoadOptions() *ProviderLoadOptions {
-	return &ProviderLoadOptions{
-		HTTPStore: syncmap.NewStore(syncmap.DefaultOptions),
-	}
-}
-
 type ComicInfoOptions struct {
 	// AddDate whether to add series release date or not
 	AddDate bool

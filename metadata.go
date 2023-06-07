@@ -60,13 +60,13 @@ type SeriesJson struct {
 }
 
 type MangaWithAnilist struct {
-	*Manga
-	*AnilistManga
+	Manga
+	Anilist *AnilistManga
 }
 
 func (m *MangaWithAnilist) SeriesJson() *SeriesJson {
 	var status string
-	switch m.Status {
+	switch m.Anilist.Status {
 	case "FINISHED":
 		status = "Ended"
 	case "RELEASING":
@@ -76,39 +76,43 @@ func (m *MangaWithAnilist) SeriesJson() *SeriesJson {
 	}
 
 	var publisher string
-	for _, edge := range m.Staff.Edges {
+	for _, edge := range m.Anilist.Staff.Edges {
 		if strings.Contains(edge.Role, "role") {
 			publisher = edge.Node.Name.Full
 			break
 		}
 	}
 
-	publicationRun := fmt.Sprintf("%d %d - %d %d", m.StartDate.Month, m.StartDate.Year, m.EndDate.Month, m.EndDate.Year)
+	publicationRun := fmt.Sprintf(
+		"%d %d - %d %d",
+		m.Anilist.StartDate.Month, m.Anilist.StartDate.Year,
+		m.Anilist.EndDate.Month, m.Anilist.EndDate.Year,
+	)
 
 	seriesJson := SeriesJson{}
 	seriesJson.Metadata.Type = "comicSeries"
-	seriesJson.Metadata.Name = m.Manga.Title
-	seriesJson.Metadata.DescriptionFormatted = m.Description
-	seriesJson.Metadata.DescriptionText = m.Description
+	seriesJson.Metadata.Name = m.Manga.GetTitle()
+	seriesJson.Metadata.DescriptionFormatted = m.Anilist.Description
+	seriesJson.Metadata.DescriptionText = m.Anilist.Description
 	seriesJson.Metadata.Status = status
-	seriesJson.Metadata.Year = m.StartDate.Year
-	seriesJson.Metadata.ComicImage = m.CoverImage.ExtraLarge
+	seriesJson.Metadata.Year = m.Anilist.StartDate.Year
+	seriesJson.Metadata.ComicImage = m.Anilist.CoverImage.ExtraLarge
 	seriesJson.Metadata.Publisher = publisher
 	seriesJson.Metadata.BookType = "Print"
-	seriesJson.Metadata.TotalIssues = m.Chapters
+	seriesJson.Metadata.TotalIssues = m.Anilist.Chapters
 	seriesJson.Metadata.PublicationRun = publicationRun
 
 	return &seriesJson
 }
 
 type ChapterOfMangaWithAnilist struct {
-	*Chapter
-	*MangaWithAnilist
+	Chapter
+	MangaWithAnilist *MangaWithAnilist
 }
 
 func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options *ComicInfoOptions) *ComicInfoXml {
-	var characters = make([]string, len(c.MangaWithAnilist.Characters.Nodes))
-	for i, node := range c.MangaWithAnilist.Characters.Nodes {
+	var characters = make([]string, len(c.MangaWithAnilist.Anilist.Characters.Nodes))
+	for i, node := range c.MangaWithAnilist.Anilist.Characters.Nodes {
 		characters[i] = node.Name.Full
 	}
 
@@ -117,7 +121,7 @@ func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options *ComicInfoOptions) *Com
 		if options.AlternativeDate != nil {
 			date = *options.AlternativeDate
 		} else {
-			date = c.MangaWithAnilist.StartDate
+			date = c.MangaWithAnilist.Anilist.StartDate
 		}
 	}
 
@@ -128,7 +132,7 @@ func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options *ComicInfoOptions) *Com
 		translators []string
 	)
 
-	for _, edge := range c.AnilistManga.Staff.Edges {
+	for _, edge := range c.MangaWithAnilist.Anilist.Staff.Edges {
 		role := edge.Role
 		name := edge.Node.Name.Full
 		switch {
@@ -144,7 +148,7 @@ func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options *ComicInfoOptions) *Com
 	}
 
 	var tags = make([]string, 0)
-	for _, tag := range c.MangaWithAnilist.Tags {
+	for _, tag := range c.MangaWithAnilist.Anilist.Tags {
 		if tag.Rank < options.TagRelevanceThreshold {
 			continue
 		}
@@ -155,14 +159,14 @@ func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options *ComicInfoOptions) *Com
 	return &ComicInfoXml{
 		XmlnsXsd:   "http://www.w3.org/2001/XMLSchema",
 		XmlnsXsi:   "http://www.w3.org/2001/XMLSchema-instance",
-		Title:      c.Title,
-		Series:     c.Manga.Title,
-		Number:     c.Number,
-		Web:        c.Url,
-		Genre:      strings.Join(c.MangaWithAnilist.Genres, ","),
+		Title:      c.GetTitle(),
+		Series:     c.GetManga().GetTitle(),
+		Number:     c.GetNumber(),
+		Web:        c.GetURL(),
+		Genre:      strings.Join(c.MangaWithAnilist.Anilist.Genres, ","),
 		PageCount:  0,
-		Summary:    c.MangaWithAnilist.Description,
-		Count:      c.MangaWithAnilist.Chapters,
+		Summary:    c.MangaWithAnilist.Anilist.Description,
+		Count:      c.MangaWithAnilist.Anilist.Chapters,
 		Characters: strings.Join(characters, ","),
 		Year:       date.Year,
 		Month:      date.Month,

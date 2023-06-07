@@ -229,20 +229,20 @@ func (c *Client) BindTitleWithAnilistId(title string, anilistMangaId int) error 
 	return c.options.Anilist.TitleToIdStore.Set(title, anilistMangaId)
 }
 
-func (c *Client) MakeMangaWithAnilist(ctx context.Context, manga *Manga) (*MangaWithAnilist, error) {
-	anilistManga, err := c.AnilistFindClosestManga(ctx, manga.Title)
+func (c *Client) MakeMangaWithAnilist(ctx context.Context, manga Manga) (*MangaWithAnilist, error) {
+	anilistManga, err := c.AnilistFindClosestManga(ctx, manga.GetTitle())
 	if err != nil {
 		return nil, err
 	}
 
 	return &MangaWithAnilist{
-		Manga:        manga,
-		AnilistManga: anilistManga,
+		Manga:   manga,
+		Anilist: anilistManga,
 	}, nil
 }
 
-func (c *Client) MakeChapterWithAnilist(ctx context.Context, chapter *Chapter) (*ChapterOfMangaWithAnilist, error) {
-	mangaWithAnilist, err := c.MakeMangaWithAnilist(ctx, chapter.manga)
+func (c *Client) MakeChapterWithAnilist(ctx context.Context, chapter Chapter) (*ChapterOfMangaWithAnilist, error) {
+	mangaWithAnilist, err := c.MakeMangaWithAnilist(ctx, chapter.GetManga())
 	if err != nil {
 		return nil, err
 	}
