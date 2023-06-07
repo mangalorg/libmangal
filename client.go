@@ -40,6 +40,18 @@ type Client struct {
 	options   *ClientOptions
 }
 
+func (c *Client) SearchMangas(ctx context.Context, query string) ([]Manga, error) {
+	return c.provider.SearchMangas(ctx, c.options.Log, query)
+}
+
+func (c *Client) MangaChapters(ctx context.Context, manga Manga) ([]Chapter, error) {
+	return c.provider.MangaChapters(ctx, c.options.Log, manga)
+}
+
+func (c *Client) ChapterPages(ctx context.Context, chapter Chapter) ([]Page, error) {
+	return c.provider.ChapterPages(ctx, c.options.Log, chapter)
+}
+
 func (c *Client) String() string {
 	return c.provider.Info().Name
 }
@@ -178,42 +190,45 @@ func (c *Client) downloadCoverIfNotExists(
 	manga Manga,
 	dir string,
 ) error {
-	const coverFilename = "cover.jpg"
+	return nil
 
-	exists, err := afero.Exists(c.options.FS, filepath.Join(dir, coverFilename))
-	if err != nil {
-		return err
-	}
+	//const coverFilename = "cover.jpg"
+	//
+	//exists, err := afero.Exists(c.options.FS, filepath.Join(dir, coverFilename))
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//if exists {
+	//	return nil
+	//}
+	//
+	//var coverUrl string
+	//
+	//if manga, err := c.MakeMangaWithAnilist(ctx, manga); err != nil {
+	//	for _, url := range []string{
+	//		manga.Anilist.CoverImage.ExtraLarge,
+	//		// no need to check `Large` cover, see `ExtraLarge` description
+	//		manga.Anilist.CoverImage.Medium,
+	//		manga.GetCoverURL(),
+	//	} {
+	//		if url != "" {
+	//			coverUrl = url
+	//			break
+	//		}
+	//	}
+	//} else {
+	//	coverUrl = manga.GetCoverURL()
+	//}
+	//
+	//if coverUrl == "" {
+	//	return fmt.Errorf("cover url is empty")
+	//}
+	//
+	//c.options.Log("downloading cover")
+	//
+	//panic("unimplemented")
 
-	if exists {
-		return nil
-	}
-
-	var coverUrl string
-
-	if manga, err := c.MakeMangaWithAnilist(ctx, manga); err != nil {
-		for _, url := range []string{
-			manga.Anilist.CoverImage.ExtraLarge,
-			// no need to check `Large` cover, see `ExtraLarge` description
-			manga.Anilist.CoverImage.Medium,
-			manga.GetCoverURL(),
-		} {
-			if url != "" {
-				coverUrl = url
-				break
-			}
-		}
-	} else {
-		coverUrl = manga.GetCoverURL()
-	}
-
-	if coverUrl == "" {
-		return fmt.Errorf("cover url is empty")
-	}
-
-	c.options.Log("downloading cover")
-
-	panic("unimplemented")
 	//
 	//cover := Page{
 	//	Url: coverUrl,
