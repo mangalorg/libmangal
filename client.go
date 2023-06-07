@@ -17,7 +17,7 @@ func NewClient(options *ClientOptions) *Client {
 	return client
 }
 
-func (c *Client) ProviderHandleFromReader(reader io.Reader) (*ProviderHandle, error) {
+func (c *Client) NewProviderHandleFromReader(reader io.Reader) (*ProviderHandle, error) {
 	contents, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, err
@@ -35,7 +35,7 @@ func (c *Client) ProviderHandleFromReader(reader io.Reader) (*ProviderHandle, er
 	}, nil
 }
 
-func (c *Client) ProviderHandleFromPath(path string) (*ProviderHandle, error) {
+func (c *Client) NewProviderHandleFromPath(path string) (*ProviderHandle, error) {
 	file, err := c.options.FS.Open(path)
 	if err != nil {
 		return nil, err

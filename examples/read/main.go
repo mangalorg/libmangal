@@ -14,7 +14,7 @@ const query = "chainsaw man"
 
 func main() {
 	client := libmangal.NewClient(libmangal.DefaultClientOptions())
-	providerHandle, err := client.ProviderHandleFromReader(bytes.NewReader(script))
+	providerHandle, err := client.NewProviderHandleFromReader(bytes.NewReader(script))
 	if err != nil {
 		panic(err)
 	}

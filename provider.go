@@ -258,31 +258,30 @@ func (p *Provider) DownloadChapter(
 	}
 
 	if options.WriteSeriesJson {
-		// skip if series.json already exists where it needs to be
-		exists, err := afero.Exists(p.client.options.FS, filepath.Join(mangaPath, seriesJsonFilename))
+		manga, err := p.client.MakeMangaWithAnilist(ctx, chapter.manga)
 		if err != nil {
 			return "", err
 		}
 
-		if exists {
-			goto renameChapter
-		}
+		seriesJson := manga.SeriesJson()
+		seriesJsonPath := filepath.Join(mangaPath, seriesJsonFilename)
 
-		// check if series.json was created in the temp dir
-		// generally, should be always true but worth checking
-		exists, err = afero.Exists(p.client.options.FS, filepath.Join(mangaTempPath, seriesJsonFilename))
+		marshalled, err := json.Marshal(seriesJson)
 		if err != nil {
 			return "", err
 		}
 
-		if !exists {
-			goto renameChapter
+		err = afero.WriteFile(p.client.options.FS, seriesJsonPath, marshalled, 0644)
+		if err != nil {
+			return "", err
 		}
+	}
 
-		// move series.json from the temp directory to the target
-		err = p.client.options.FS.Rename(
-			filepath.Join(mangaTempPath, seriesJsonFilename),
-			filepath.Join(mangaPath, seriesJsonFilename),
+	if options.DownloadMangaCover {
+		err = p.downloadCoverIfNotExists(
+			ctx,
+			chapter.manga,
+			mangaPath,
 		)
 
 		if err != nil {
@@ -290,7 +289,6 @@ func (p *Provider) DownloadChapter(
 		}
 	}
 
-renameChapter:
 	// move to the original location
 	// only after everything else was successful
 	err = p.client.options.FS.Rename(
@@ -304,24 +302,59 @@ renameChapter:
 	return chapterPath, nil
 }
 
-func (p *Provider) computeFilenames(
-	chapter *Chapter,
-	format Format,
-) (mangaFilename, chapterFilename string) {
-	mangaFilename = p.client.options.MangaNameTemplate(chapter.manga.NameData())
-	chapterFilename = p.client.options.ChapterNameTemplate(chapter.NameData())
+func (p *Provider) downloadCoverIfNotExists(
+	ctx context.Context,
+	manga *Manga,
+	dir string,
+) error {
+	const coverFilename = "cover.jpg"
 
-	extensions := map[Format]string{
-		FormatPDF: ".pdf",
-		FormatCBZ: ".cbz",
+	exists, err := afero.Exists(p.client.options.FS, filepath.Join(dir, coverFilename))
+	if err != nil {
+		return err
 	}
 
-	extension, ok := extensions[format]
-	if ok {
-		chapterFilename += extension
+	if exists {
+		return nil
 	}
 
-	return mangaFilename, chapterFilename
+	var coverUrl string
+
+	if manga, err := p.client.MakeMangaWithAnilist(ctx, manga); err != nil {
+		for _, url := range []string{
+			manga.CoverImage.ExtraLarge,
+			// no need to check `Large` cover, see `ExtraLarge` description
+			manga.CoverImage.Medium,
+			manga.CoverUrl,
+		} {
+			if url != "" {
+				coverUrl = url
+				break
+			}
+		}
+	} else {
+		coverUrl = manga.CoverUrl
+	}
+
+	if coverUrl == "" {
+		return fmt.Errorf("cover url is empty")
+	}
+
+	p.client.options.Log("downloading cover")
+	cover := Page{
+		Url: coverUrl,
+	}
+
+	downloaded, err := p.DownloadPage(ctx, &cover)
+	if err != nil {
+		return err
+	}
+
+	return afero.WriteReader(
+		p.client.options.FS,
+		filepath.Join(dir, coverFilename),
+		downloaded,
+	)
 }
 
 func (p *Provider) downloadChapter(
@@ -335,7 +368,7 @@ func (p *Provider) downloadChapter(
 		return err
 	}
 
-	downloadedPages, err := p.downloadPages(ctx, pages)
+	downloadedPages, err := p.DownloadPagesInBatch(ctx, pages)
 	if err != nil {
 		return err
 	}
@@ -363,55 +396,31 @@ func (p *Provider) downloadChapter(
 		return err
 	}
 
-	if options.WriteSeriesJson {
-		manga, err := p.client.MakeMangaWithAnilist(ctx, chapter.manga)
-		if err != nil {
-			return err
-		}
-
-		seriesJson := manga.SeriesJson()
-		seriesJsonPath := filepath.Join(filepath.Dir(path), seriesJsonFilename)
-
-		marshalled, err := json.Marshal(seriesJson)
-		if err != nil {
-			return err
-		}
-
-		err = afero.WriteFile(p.client.options.FS, seriesJsonPath, marshalled, 0644)
-		if err != nil {
-			// TODO: make a separate error type for that
-			return err
-		}
-	}
-
 	return nil
 }
 
-func (p *Provider) downloadPages(
+func (p *Provider) DownloadPagesInBatch(
 	ctx context.Context,
 	pages []*Page,
-) ([]*downloadedPage, error) {
+) ([]*DownloadedPage, error) {
 	p.client.options.Log(fmt.Sprintf("Downloading %d pages", len(pages)))
 
 	g, _ := errgroup.WithContext(ctx)
 
-	downloadedPages := make([]*downloadedPage, len(pages))
+	downloadedPages := make([]*DownloadedPage, len(pages))
 
 	for i, page := range pages {
 		i, page := i, page
 		g.Go(func() error {
 			p.client.options.Log(fmt.Sprintf("Page #%03d: downloading", i+1))
-			reader, err := p.pageToReader(ctx, page)
+			downloaded, err := p.DownloadPage(ctx, page)
 			if err != nil {
 				return err
 			}
 
 			p.client.options.Log(fmt.Sprintf("Page #%03d: done", i+1))
 
-			downloadedPages[i] = &downloadedPage{
-				Page:   page,
-				Reader: reader,
-			}
+			downloadedPages[i] = downloaded
 
 			return nil
 		})
@@ -425,7 +434,7 @@ func (p *Provider) downloadPages(
 }
 
 func (p *Provider) savePDF(
-	pages []*downloadedPage,
+	pages []*DownloadedPage,
 	path string,
 ) error {
 	p.client.options.Log(fmt.Sprintf("Saving %d pages as PDF", len(pages)))
@@ -448,7 +457,7 @@ func (p *Provider) savePDF(
 }
 
 func (p *Provider) saveCBZ(
-	pages []*downloadedPage,
+	pages []*DownloadedPage,
 	path string,
 	comicInfoXml *ComicInfoXml,
 ) error {
@@ -513,7 +522,7 @@ func (p *Provider) saveCBZ(
 }
 
 func (p *Provider) saveImages(
-	pages []*downloadedPage,
+	pages []*DownloadedPage,
 	path string,
 ) error {
 	p.client.options.Log(fmt.Sprintf("Saving %d pages as images dir", len(pages)))
@@ -547,9 +556,12 @@ func (p *Provider) saveImages(
 	return nil
 }
 
-func (p *Provider) pageToReader(ctx context.Context, page *Page) (io.Reader, error) {
+func (p *Provider) DownloadPage(ctx context.Context, page *Page) (*DownloadedPage, error) {
 	if page.Data != "" {
-		return strings.NewReader(page.Data), nil
+		return &DownloadedPage{
+			Page:   page,
+			Reader: strings.NewReader(page.Data),
+		}, nil
 	}
 
 	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, page.Url, nil)
@@ -591,7 +603,10 @@ func (p *Provider) pageToReader(ctx context.Context, page *Page) (io.Reader, err
 		return nil, err
 	}
 
-	return bytes.NewReader(buffer), nil
+	return &DownloadedPage{
+		Page:   page,
+		Reader: bytes.NewReader(buffer),
+	}, nil
 }
 
 func (p *Provider) ReadChapter(ctx context.Context, chapter *Chapter, options *ReadOptions) error {
@@ -664,4 +679,24 @@ func (p *Provider) IsChapterDownloaded(
 	}
 
 	return "", false
+}
+
+func (p *Provider) computeFilenames(
+	chapter *Chapter,
+	format Format,
+) (mangaFilename, chapterFilename string) {
+	mangaFilename = p.client.options.MangaNameTemplate(chapter.manga.NameData())
+	chapterFilename = p.client.options.ChapterNameTemplate(chapter.NameData())
+
+	extensions := map[Format]string{
+		FormatPDF: ".pdf",
+		FormatCBZ: ".cbz",
+	}
+
+	extension, ok := extensions[format]
+	if ok {
+		chapterFilename += extension
+	}
+
+	return mangaFilename, chapterFilename
 }

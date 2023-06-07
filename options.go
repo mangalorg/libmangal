@@ -12,22 +12,26 @@ import (
 )
 
 type DownloadOptions struct {
-	Format            Format
-	CreateMangaDir    bool
-	SkipIfExists      bool
-	WriteSeriesJson   bool
-	WriteComicInfoXml bool
-	ComicInfoOptions  *ComicInfoOptions
+	Format         Format
+	CreateMangaDir bool
+	SkipIfExists   bool
+
+	DownloadMangaCover bool
+	WriteSeriesJson    bool
+	WriteComicInfoXml  bool
+	ComicInfoOptions   *ComicInfoOptions
 }
 
 func DefaultDownloadOptions() *DownloadOptions {
 	return &DownloadOptions{
-		Format:            FormatPDF,
-		CreateMangaDir:    true,
-		SkipIfExists:      true,
-		WriteSeriesJson:   false,
-		WriteComicInfoXml: false,
-		ComicInfoOptions:  DefaultComicInfoOptions(),
+		Format:         FormatPDF,
+		CreateMangaDir: true,
+		SkipIfExists:   true,
+
+		DownloadMangaCover: false,
+		WriteSeriesJson:    false,
+		WriteComicInfoXml:  false,
+		ComicInfoOptions:   DefaultComicInfoOptions(),
 	}
 }
 

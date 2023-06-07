@@ -72,7 +72,7 @@ func (p *Page) fillDefaults() {
 	}
 }
 
-type downloadedPage struct {
+type DownloadedPage struct {
 	*Page
 	io.Reader
 }

@@ -65,7 +65,7 @@ var runCmd = &cobra.Command{
 	Short: "Run a provider",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		handle, err := client.ProviderHandleFromPath(args[0])
+		handle, err := client.NewProviderHandleFromPath(args[0])
 		if err != nil {
 			return err
 		}
@@ -135,6 +135,7 @@ var runCmd = &cobra.Command{
 						downloadOptions.Format = format
 						downloadOptions.WriteSeriesJson = true
 						downloadOptions.WriteComicInfoXml = true
+						downloadOptions.DownloadMangaCover = true
 
 						_, err = provider.DownloadChapter(context.Background(), chapter, ".", downloadOptions)
 						if err != nil {
@@ -184,7 +185,7 @@ var probeCmd = &cobra.Command{
 	Short: "Probe a provider",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		handle, err := client.ProviderHandleFromPath(args[0])
+		handle, err := client.NewProviderHandleFromPath(args[0])
 		if err != nil {
 			return err
 		}
@@ -276,7 +277,7 @@ func main() {
 
 func m() {
 	client := libmangal.NewClient(libmangal.DefaultClientOptions())
-	providerHandle, err := client.ProviderHandleFromPath("script.lua")
+	providerHandle, err := client.NewProviderHandleFromPath("script.lua")
 	if err != nil {
 		panic(err)
 	}
