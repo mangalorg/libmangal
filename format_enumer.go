@@ -15,7 +15,7 @@ const _FormatLowerName = "pdfimagescbz"
 
 func (i Format) String() string {
 	i -= 1
-	if i < 0 || i >= Format(len(_FormatIndex)-1) {
+	if i >= Format(len(_FormatIndex)-1) {
 		return fmt.Sprintf("Format(%d)", i+1)
 	}
 	return _FormatName[_FormatIndex[i]:_FormatIndex[i+1]]

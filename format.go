@@ -3,7 +3,7 @@ package libmangal
 //go:generate enumer -type=Format -trimprefix=Format
 
 // Format is the format for saving chapters
-type Format int
+type Format uint8
 
 const (
 	// FormatPDF saves chapter as a PDF document

@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/samber/lo"
 	"net/http"
 	"strconv"
 	"time"
@@ -32,21 +32,37 @@ func NewAnilist(options *AnilistOptions) *Anilist {
 	return &Anilist{options: options}
 }
 
-func (a *Anilist) SearchByID(
+func (a *Anilist) GetByID(
+	ctx context.Context,
+	id int,
+) (*AnilistManga, error) {
+	found, manga, err := a.cacheStatusId(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if found {
+		return manga, nil
+	}
+
+	manga, err = a.getByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	err = a.cacheSetId(id, manga)
+	if err != nil {
+		return nil, err
+	}
+
+	return manga, nil
+}
+
+func (a *Anilist) getByID(
 	ctx context.Context,
 	id int,
 ) (*AnilistManga, error) {
 	a.options.Log(fmt.Sprintf("Searching manga with id %d on Anilist", id))
-
-	{
-		var manga *AnilistManga
-		found, err := a.options.IdToMangaStore.Get(strconv.Itoa(id), &manga)
-		if err != nil {
-			_ = a.options.IdToMangaStore.Delete(strconv.Itoa(id))
-		} else if found {
-			return manga, nil
-		}
-	}
 
 	body := &anilistRequestBody{
 		Query: anilistQuerySearchByID,
@@ -55,20 +71,18 @@ func (a *Anilist) SearchByID(
 		},
 	}
 
-	response := struct {
-		Data struct {
-			Media *AnilistManga `json:"media"`
-		} `json:"data"`
-	}{}
+	data, err := sendRequest[struct {
+		Media *AnilistManga `json:"media"`
+	}](ctx, a, body)
 
-	err := a.sendRequest(ctx, body, &response)
 	if err != nil {
 		return nil, err
 	}
 
-	manga := response.Data.Media
-
-	_ = a.options.IdToMangaStore.Set(strconv.Itoa(id), manga)
+	manga := data.Media
+	if manga == nil {
+		return nil, errors.New("manga by id not found")
+	}
 
 	return manga, nil
 }
@@ -82,25 +96,54 @@ func (a *Anilist) SearchMangas(
 	a.options.Log("Searching manga on Anilist...")
 
 	{
-		var ids []int
-		found, err := a.options.QueryToIdsStore.Get(query, &ids)
+		found, ids, err := a.cacheStatusQuery(query)
 		if err != nil {
-			_ = a.options.QueryToIdsStore.Delete(query)
-		} else if found {
-			mangas := lo.FilterMap(ids, func(id, _ int) (*AnilistManga, bool) {
-				var manga *AnilistManga
-				found, err := a.options.IdToMangaStore.Get(strconv.Itoa(id), &manga)
-
-				return manga, found && err == nil
-			})
-
-			a.options.Log("Found in cache")
-			return mangas, nil
+			return nil, err
 		}
 
-		a.options.Log("Not found in cache")
+		if found {
+			var mangas []*AnilistManga
+
+			for _, id := range ids {
+				manga, err := a.GetByID(ctx, id)
+				if err != nil {
+					return nil, err
+				}
+
+				mangas = append(mangas, manga)
+			}
+
+			return mangas, nil
+		}
 	}
 
+	mangas, err := a.searchMangas(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	var ids = make([]int, len(mangas))
+	for i, manga := range mangas {
+		err := a.cacheSetId(manga.ID, manga)
+		if err != nil {
+			return nil, err
+		}
+
+		ids[i] = manga.ID
+	}
+
+	err = a.cacheSetQuery(query, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	return mangas, nil
+}
+
+func (a *Anilist) searchMangas(
+	ctx context.Context,
+	query string,
+) ([]*AnilistManga, error) {
 	body := &anilistRequestBody{
 		Query: anilistQuerySearchByName,
 		Variables: map[string]any{
@@ -108,59 +151,52 @@ func (a *Anilist) SearchMangas(
 		},
 	}
 
-	anilistResponse := struct {
-		Data struct {
-			Page struct {
-				Media []*AnilistManga `json:"media"`
-			} `json:"page"`
-		} `json:"data"`
-	}{}
+	data, err := sendRequest[struct {
+		Page struct {
+			Media []*AnilistManga `json:"media"`
+		} `json:"page"`
+	}](ctx, a, body)
 
-	err := a.sendRequest(ctx, body, &anilistResponse)
 	if err != nil {
 		return nil, err
 	}
 
-	mangas := anilistResponse.Data.Page.Media
+	mangas := data.Page.Media
 
 	a.options.Log(fmt.Sprintf("Found %d manga(s) on Anilist.", len(mangas)))
-
-	{
-		var ids = make([]int, len(mangas))
-
-		for i, manga := range mangas {
-			id := manga.ID
-			ids[i] = id
-			_ = a.options.IdToMangaStore.Set(strconv.Itoa(id), manga)
-		}
-
-		_ = a.options.QueryToIdsStore.Set(query, ids)
-	}
 
 	return mangas, nil
 }
 
-func (a *Anilist) sendRequest(
+type anilistResponse[Data any] struct {
+	Errors []struct {
+		Message string `json:"message"`
+		Status  int    `json:"status"`
+	} `json:"errors"`
+	Data Data `json:"data"`
+}
+
+func sendRequest[Data any](
 	ctx context.Context,
-	body *anilistRequestBody,
-	decode any,
-) error {
-	marshalled, err := json.Marshal(body)
+	anilist *Anilist,
+	requestBody *anilistRequestBody,
+) (data Data, err error) {
+	marshalled, err := json.Marshal(requestBody)
 	if err != nil {
-		return err
+		return data, err
 	}
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, anilistUrlApi, bytes.NewReader(marshalled))
 	if err != nil {
-		return err
+		return data, err
 	}
 
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
 
-	response, err := a.options.HTTPClient.Do(request)
+	response, err := anilist.options.HTTPClient.Do(request)
 	if err != nil {
-		return err
+		return data, err
 	}
 
 	defer response.Body.Close()
@@ -175,76 +211,94 @@ func (a *Anilist) sendRequest(
 
 		seconds, err := strconv.Atoi(retryAfter)
 		if err != nil {
-			return err
+			return data, err
 		}
 
-		a.options.Log(fmt.Sprintf("Rate limited. Retrying in %d seconds...", seconds))
+		anilist.options.Log(fmt.Sprintf("Rate limited. Retrying in %d seconds...", seconds))
 
 		select {
 		case <-time.After(time.Duration(seconds) * time.Second):
 		case <-ctx.Done():
-			return ctx.Err()
+			return data, ctx.Err()
 		}
 
-		return a.sendRequest(ctx, body, decode)
+		return sendRequest[Data](ctx, anilist, requestBody)
 	}
 
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf(response.Status)
+		return data, fmt.Errorf(response.Status)
 	}
 
-	return json.NewDecoder(response.Body).Decode(&decode)
+	var body anilistResponse[Data]
+
+	err = json.NewDecoder(response.Body).Decode(&body)
+	if err != nil {
+		return data, err
+	}
+
+	if body.Errors != nil {
+		err := body.Errors[0]
+		return data, errors.New(err.Message)
+	}
+
+	return body.Data, nil
 }
 
 func (a *Anilist) FindClosestManga(
 	ctx context.Context,
 	title string,
-) (*AnilistManga, error) {
+) (*AnilistManga, bool, error) {
 	a.options.Log("Finding closest manga on Anilist...")
 
 	title = unifyString(title)
 
-	{
-		var id int
-		found, err := a.options.TitleToIdStore.Get(title, &id)
-		if err != nil {
-			_ = a.options.TitleToIdStore.Delete(title)
-		} else if found {
-			var manga *AnilistManga
-			found, _ = a.options.IdToMangaStore.Get(strconv.Itoa(id), &manga)
-			// TODO: handle error, maybe
-			if found {
-				a.options.Log("Found in cache")
-				return manga, nil
-			} else {
-				manga, err = a.SearchByID(ctx, id)
-				if err != nil {
-					return nil, err
-				}
+	found, id, err := a.cacheStatusTitle(title)
+	if err != nil {
+		return nil, false, err
+	}
 
-				return manga, nil
-			}
+	if found {
+		found, manga, err := a.cacheStatusId(id)
+		if err != nil {
+			return nil, false, err
 		}
 
-		a.options.Log("Not found in cache")
+		if found {
+			return manga, true, nil
+		}
 	}
 
-	manga, err := a.findClosestManga(ctx, title, title, 3, 0, 3)
+	manga, ok, err := a.findClosestManga(
+		ctx,
+		title,
+		title,
+		3,
+		0,
+		3,
+	)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	_ = a.options.TitleToIdStore.Set(title, manga.ID)
-	return manga, nil
+	err = a.cacheSetTitle(title, manga.ID)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !ok {
+		return nil, false, nil
+	}
+
+	return manga, true, nil
 }
 
 func (a *Anilist) findClosestManga(
 	ctx context.Context,
 	originalTitle, currentTitle string,
 	step, try, limit int,
-) (*AnilistManga, error) {
+) (*AnilistManga, bool, error) {
 	if try >= limit {
-		return nil, fmt.Errorf("no results found on Anilist for manga %q", originalTitle)
+		return nil, false, nil
 	}
 
 	a.options.Log(
@@ -253,13 +307,13 @@ func (a *Anilist) findClosestManga(
 
 	mangas, err := a.SearchMangas(ctx, currentTitle)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if len(mangas) == 0 {
 		// try again with a different title
 		// remove `step` characters from the end of the title
-		// avoid removing the last character or leaving an empty string
+		// avoid removing the last character or going out of bounds
 		var newLen int
 		if len(currentTitle) > step {
 			newLen = len(currentTitle) - step
@@ -267,7 +321,7 @@ func (a *Anilist) findClosestManga(
 			newLen = len(currentTitle) - 1
 		} else {
 			// trigger limit, proceeding further will only make things worse
-			return a.findClosestManga(ctx, originalTitle, originalTitle, step, limit, limit)
+			return nil, false, nil
 		}
 
 		currentTitle = currentTitle[:newLen]
@@ -278,21 +332,28 @@ func (a *Anilist) findClosestManga(
 	closest, ok := a.options.GetClosestManga(currentTitle, mangas)
 
 	if !ok {
-		return nil, fmt.Errorf("closest manga to %q wasn't found on anilist", originalTitle)
+		return nil, false, nil
 	}
 
 	a.options.Log(fmt.Sprintf("Found closest manga on Anilist: %q #%d", closest.String(), closest.ID))
-	return closest, nil
+	return closest, true, nil
 }
 
-func (a *Anilist) BindTitleWithId(title string, anilistMangaId int) error {
-	return a.options.TitleToIdStore.Set(title, anilistMangaId)
+func (a *Anilist) BindTitleWithID(title string, anilistMangaId int) error {
+	return a.options.TitleToIDStore.Set(title, anilistMangaId)
 }
 
-func (a *Anilist) MakeMangaWithAnilist(ctx context.Context, manga MangaInfo) (*MangaWithAnilist, error) {
-	anilistManga, err := a.FindClosestManga(ctx, manga.Title)
+func (a *Anilist) MakeMangaWithAnilist(
+	ctx context.Context,
+	manga MangaInfo,
+) (*MangaWithAnilist, error) {
+	anilistManga, ok, err := a.FindClosestManga(ctx, manga.Title)
 	if err != nil {
 		return nil, err
+	}
+
+	if !ok {
+		return nil, errors.New("anilist manga not found")
 	}
 
 	return &MangaWithAnilist{

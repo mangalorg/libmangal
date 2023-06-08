@@ -417,20 +417,19 @@ func (c *Client[M, V, C, P]) DownloadPage(ctx context.Context, page P) (*PageWit
 //
 // Note: works only for afero.OsFs
 func (c *Client[M, V, C, P]) ReadChapter(ctx context.Context, chapter C, options *ReadOptions) error {
-	if c.options.FS.Name() != "OsFs" {
-		return fmt.Errorf("only OsFs is supported for reading")
-	}
-
 	c.options.Log(fmt.Sprintf("Reading chapter %q as %s", chapter.Info().Title, options.Format))
 
 	var chapterPath string
 	if options.MangasLibraryPath != "" {
-		path, ok, err := c.IsChapterDownloaded(chapter, options.MangasLibraryPath, options.Format, false)
+		filenames := c.ComputeFilenames(chapter, options.Format)
+
+		path := filepath.Join(options.MangasLibraryPath, filenames.Chapter)
+		exists, err := afero.Exists(c.options.FS, path)
 		if err != nil {
 			return err
 		}
 
-		if ok {
+		if exists {
 			c.options.Log(fmt.Sprintf("Chapter %q is already downloaded", chapter.Info().Title))
 			chapterPath = path
 		}
@@ -447,7 +446,7 @@ func (c *Client[M, V, C, P]) ReadChapter(ctx context.Context, chapter C, options
 			ctx,
 			chapter,
 			tempDir,
-			DefaultDownloadOptions(),
+			&DownloadOptions{Format: options.Format},
 		)
 		if err != nil {
 			return err
@@ -463,32 +462,6 @@ func (c *Client[M, V, C, P]) ReadChapter(ctx context.Context, chapter C, options
 	// TODO: history?
 
 	return nil
-}
-
-// IsChapterDownloaded checks if chapter is downloaded.
-// It will simply check if path dir/manga/chapter exists
-func (c *Client[M, V, C, P]) IsChapterDownloaded(
-	chapter Chapter,
-	dir string,
-	format Format,
-	withVolume bool,
-) (path string, ok bool, err error) {
-	filenames := c.ComputeFilenames(chapter, format)
-
-	path = filepath.Join(dir, filenames.Manga)
-
-	if withVolume {
-		path = filepath.Join(path, filenames.Volume)
-	}
-
-	path = filepath.Join(path, filenames.Chapter)
-
-	exists, err := afero.Exists(c.options.FS, path)
-	if err != nil {
-		return "", false, err
-	}
-
-	return path, exists, nil
 }
 
 type Filenames struct {

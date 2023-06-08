@@ -74,20 +74,20 @@ type AnilistOptions struct {
 	// HTTPClient is a http client used for Anilist API
 	HTTPClient *http.Client
 
-	// QueryToIdsStore maps query to ids.
+	// QueryToIDsStore maps query to ids.
 	// single query to multiple ids.
 	// ["berserk" => [7, 42, 69], "death note" => [887, 3, 134]]
-	QueryToIdsStore gokv.Store
+	QueryToIDsStore gokv.Store
 
-	// TitleToIdStore maps title to id.
+	// TitleToIDStore maps title to id.
 	// single title to single id.
 	// ["berserk" => 7, "death note" => 3]
-	TitleToIdStore gokv.Store
+	TitleToIDStore gokv.Store
 
-	// IdToMangaStore maps id to manga.
+	// IDToMangaStore maps id to manga.
 	// single id to single manga.
 	// [7 => "{title: ..., image: ..., ...}"]
-	IdToMangaStore gokv.Store
+	IDToMangaStore gokv.Store
 
 	// GetClosestManga is the function that will be used
 	// to get the most similar manga from Anilist
@@ -109,9 +109,9 @@ func DefaultAnilistOptions() *AnilistOptions {
 
 		HTTPClient: &http.Client{},
 
-		QueryToIdsStore: syncmap.NewStore(syncmap.DefaultOptions),
-		TitleToIdStore:  syncmap.NewStore(syncmap.DefaultOptions),
-		IdToMangaStore:  syncmap.NewStore(syncmap.DefaultOptions),
+		QueryToIDsStore: syncmap.NewStore(syncmap.DefaultOptions),
+		TitleToIDStore:  syncmap.NewStore(syncmap.DefaultOptions),
+		IDToMangaStore:  syncmap.NewStore(syncmap.DefaultOptions),
 
 		GetClosestManga: func(title string, anilistMangas []*AnilistManga) (*AnilistManga, bool) {
 			title = unifyString(title)
@@ -179,7 +179,7 @@ func DefaultClientOptions() *ClientOptions {
 			} else {
 				asFloat, err := strconv.ParseFloat(info.Number, 64)
 				if err == nil {
-					numStr = fmt.Sprintf("%04.1f", asFloat)
+					numStr = fmt.Sprintf("%06.1f", asFloat)
 				} else {
 					numStr = info.Number
 				}
