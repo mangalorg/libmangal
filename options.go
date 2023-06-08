@@ -39,9 +39,10 @@ type DownloadOptions struct {
 // DefaultDownloadOptions constructs default DownloadOptions
 func DefaultDownloadOptions() *DownloadOptions {
 	return &DownloadOptions{
-		Format:       FormatPDF,
-		SkipIfExists: true,
-
+		Format:             FormatPDF,
+		CreateMangaDir:     true,
+		CreateVolumeDir:    false,
+		SkipIfExists:       true,
 		DownloadMangaCover: false,
 		WriteSeriesJson:    false,
 		WriteComicInfoXml:  false,
