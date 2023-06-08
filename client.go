@@ -14,6 +14,9 @@ import (
 	"path/filepath"
 )
 
+// NewClient creates a new client from ProviderLoader.
+// ClientOptions must be non-nil. Use DefaultClientOptions for defaults.
+// It will validate ProviderLoader.Info and load the provider.
 func NewClient(
 	ctx context.Context,
 	loader ProviderLoader,
@@ -34,20 +37,25 @@ func NewClient(
 	}, nil
 }
 
+// Client is the wrapper around Provider with the extended functionality.
+// It's the core of the libmangal
 type Client struct {
 	rawScript []byte
 	provider  Provider
 	options   *ClientOptions
 }
 
+// SearchMangas searches for mangas with the given query
 func (c *Client) SearchMangas(ctx context.Context, query string) ([]Manga, error) {
 	return c.provider.SearchMangas(ctx, c.options.Log, query)
 }
 
+// MangaChapters gets chapters of the given manga
 func (c *Client) MangaChapters(ctx context.Context, manga Manga) ([]Chapter, error) {
 	return c.provider.MangaChapters(ctx, c.options.Log, manga)
 }
 
+// ChapterPages gets pages of the given chapter
 func (c *Client) ChapterPages(ctx context.Context, chapter Chapter) ([]Page, error) {
 	return c.provider.ChapterPages(ctx, c.options.Log, chapter)
 }
@@ -56,8 +64,9 @@ func (c *Client) String() string {
 	return c.provider.Info().Name
 }
 
-func (c *Client) Provider() Provider {
-	return c.provider
+// Info returns info about provider
+func (c *Client) Info() ProviderInfo {
+	return c.provider.Info()
 }
 
 // DownloadChapter downloads and saves chapter to the specified
@@ -136,7 +145,7 @@ func (c *Client) DownloadChapter(
 	}
 
 	if options.WriteSeriesJson {
-		manga, err := c.MakeMangaWithAnilist(ctx, chapter.GetManga())
+		manga, err := c.options.Anilist.MakeMangaWithAnilist(ctx, chapter.GetManga())
 		if err != nil {
 			return "", err
 		}
@@ -269,7 +278,7 @@ func (c *Client) downloadChapter(
 	case FormatCBZ:
 		var comicInfo *ComicInfoXml
 		if options.WriteComicInfoXml {
-			chapter, err := c.MakeChapterWithAnilist(ctx, chapter)
+			chapter, err := c.options.Anilist.MakeChapterWithAnilist(ctx, chapter)
 			if err != nil {
 				return err
 			}
@@ -296,12 +305,12 @@ func (c *Client) downloadChapter(
 func (c *Client) DownloadPagesInBatch(
 	ctx context.Context,
 	pages []Page,
-) ([]*DownloadedPage, error) {
+) ([]*PageWithImage, error) {
 	c.options.Log(fmt.Sprintf("Downloading %d pages", len(pages)))
 
 	g, _ := errgroup.WithContext(ctx)
 
-	downloadedPages := make([]*DownloadedPage, len(pages))
+	downloadedPages := make([]*PageWithImage, len(pages))
 
 	for i, page := range pages {
 		i, page := i, page
@@ -329,7 +338,7 @@ func (c *Client) DownloadPagesInBatch(
 
 // SavePDF saves pages in FormatPDF
 func (c *Client) SavePDF(
-	pages []*DownloadedPage,
+	pages []*PageWithImage,
 	path string,
 ) error {
 	c.options.Log(fmt.Sprintf("Saving %d pages as PDF", len(pages)))
@@ -353,7 +362,7 @@ func (c *Client) SavePDF(
 
 // SaveCBZ saves pages in FormatCBZ
 func (c *Client) SaveCBZ(
-	pages []*DownloadedPage,
+	pages []*PageWithImage,
 	path string,
 	comicInfoXml *ComicInfoXml,
 ) error {
@@ -419,7 +428,7 @@ func (c *Client) SaveCBZ(
 
 // SaveImages saves pages in FormatImages
 func (c *Client) SaveImages(
-	pages []*DownloadedPage,
+	pages []*PageWithImage,
 	path string,
 ) error {
 	c.options.Log(fmt.Sprintf("Saving %d pages as images dir", len(pages)))
@@ -454,13 +463,13 @@ func (c *Client) SaveImages(
 }
 
 // DownloadPage downloads a page contents (image)
-func (c *Client) DownloadPage(ctx context.Context, page Page) (*DownloadedPage, error) {
+func (c *Client) DownloadPage(ctx context.Context, page Page) (*PageWithImage, error) {
 	reader, err := c.provider.GetImage(ctx, c.options.Log, page)
 	if err != nil {
 		return nil, err
 	}
 
-	return &DownloadedPage{
+	return &PageWithImage{
 		Page:   page,
 		Reader: reader,
 	}, nil

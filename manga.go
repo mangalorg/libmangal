@@ -4,6 +4,23 @@ import (
 	"io"
 )
 
+//type Title struct {
+//	Display string
+//	Anilist string
+//}
+//
+//type Cover struct {
+//	URL     string
+//	Referer string
+//}
+//
+//type MangaInfo struct {
+//	Title Title
+//	URL   string
+//	ID    string
+//	Cover Cover
+//}
+
 type Manga interface {
 	GetTitle() string
 	GetURL() string
@@ -33,7 +50,7 @@ type Page interface {
 	GetExtension() string
 }
 
-type DownloadedPage struct {
+type PageWithImage struct {
 	Page
 	io.Reader
 }

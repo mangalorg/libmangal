@@ -1,22 +1,15 @@
 # libmangal
 
-Golang library for managing manga scraping
-with lua providers and
-comic tagging with Anilist
+Engine for managing manga scraping from any provider.
+
+It is designed to be used as a powerful wrapper around anything that implements its `Provider` interface
 
 ## Install
 
-```shell
+```bash
 go get github.com/mangalorg/libmangal
 ```
 
 ## Examples
 
 See [examples](./examples)
-
-To run example run from the root directory
-
-```shell
-just example <name>
-# e.g. just example read
-```

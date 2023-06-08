@@ -11,16 +11,29 @@ import (
 	"strconv"
 )
 
+// DownloadOptions configures Chapter downloading
 type DownloadOptions struct {
-	Format       Format
+	// Format in which a chapter must be downloaded
+	Format Format
+
+	// SkipIfExists will skip downloading chapter if its already downloaded (exists)
 	SkipIfExists bool
 
+	// DownloadMangaCover or not. Will not download cover again if its already downloaded.
 	DownloadMangaCover bool
-	WriteSeriesJson    bool
-	WriteComicInfoXml  bool
-	ComicInfoOptions   *ComicInfoOptions
+
+	// WriteSeriesJson write metadata series.json file in the manga directory
+	WriteSeriesJson bool
+
+	// WriteComicInfoXml write metadata ComicInfo.xml file to the .cbz archive when
+	// downloading with FormatCBZ
+	WriteComicInfoXml bool
+
+	// ComicInfoOptions options to use for ComicInfo.xml when WriteComicInfoXml is true
+	ComicInfoOptions *ComicInfoOptions
 }
 
+// DefaultDownloadOptions constructs default DownloadOptions
 func DefaultDownloadOptions() *DownloadOptions {
 	return &DownloadOptions{
 		Format:       FormatPDF,
@@ -33,7 +46,9 @@ func DefaultDownloadOptions() *DownloadOptions {
 	}
 }
 
+// ReadOptions specifies reading options passed to the Client.ReadChapter
 type ReadOptions struct {
+	// Format used for reading
 	Format Format
 
 	// MangasLibraryPath is the path to the directory where mangas are stored.
@@ -42,6 +57,7 @@ type ReadOptions struct {
 	MangasLibraryPath string
 }
 
+// DefaultReadOptions constructs default ReadOptions
 func DefaultReadOptions() *ReadOptions {
 	return &ReadOptions{
 		Format:            FormatPDF,
@@ -49,10 +65,25 @@ func DefaultReadOptions() *ReadOptions {
 	}
 }
 
+// AnilistOptions is options for Anilist client
 type AnilistOptions struct {
+	// HTTPClient is a http client used for Anilist API
+	HTTPClient *http.Client
+
+	// QueryToIdsStore maps query to ids.
+	// single query to multiple ids.
+	// ["berserk" => [7, 42, 69], "death note" => [887, 3, 134]]
 	QueryToIdsStore gokv.Store
-	TitleToIdStore  gokv.Store
-	IdToMangaStore  gokv.Store
+
+	// TitleToIdStore maps title to id.
+	// single title to single id.
+	// ["berserk" => 7, "death note" => 3]
+	TitleToIdStore gokv.Store
+
+	// IdToMangaStore maps id to manga.
+	// single id to single manga.
+	// [7 => "{title: ..., image: ..., ...}"]
+	IdToMangaStore gokv.Store
 
 	// GetClosestManga is the function that will be used
 	// to get the most similar manga from Anilist
@@ -62,10 +93,18 @@ type AnilistOptions struct {
 		title string,
 		anilistMangas []*AnilistManga,
 	) (closest *AnilistManga, ok bool)
+
+	// Log logs progress
+	Log LogFunc
 }
 
+// DefaultAnilistOptions constructs default AnilistOptions
 func DefaultAnilistOptions() *AnilistOptions {
 	return &AnilistOptions{
+		Log: func(string) {},
+
+		HTTPClient: &http.Client{},
+
 		QueryToIdsStore: syncmap.NewStore(syncmap.DefaultOptions),
 		TitleToIdStore:  syncmap.NewStore(syncmap.DefaultOptions),
 		IdToMangaStore:  syncmap.NewStore(syncmap.DefaultOptions),
@@ -85,25 +124,38 @@ func DefaultAnilistOptions() *AnilistOptions {
 	}
 }
 
+// ClientOptions is options that client would use during its runtime.
+// See DefaultClientOptions
 type ClientOptions struct {
+	// HTTPClient is http client that client would use for requests
 	HTTPClient *http.Client
-	FS         afero.Fs
 
+	// FS is a file system abstraction
+	// that the client will use.
+	FS afero.Fs
+
+	// ChapterNameTemplate defines how chapters filenames will look when downloaded.
+	// E.g. "[001] chapter 1" or "Chainsaw Man - Ch. 1"
 	ChapterNameTemplate func(
 		provider string,
 		data ChapterNameData,
 	) string
 
+	// ChapterNameTemplate defines how mangas filenames will look when downloaded.
 	MangaNameTemplate func(
 		provider string,
 		data MangaNameData,
 	) string
 
-	Log func(string)
+	// Log is a function that will be passed to the provider
+	// to serve as a progress writer
+	Log LogFunc
 
-	Anilist *AnilistOptions
+	// Anilist is the Anilist client to use
+	Anilist *Anilist
 }
 
+// DefaultClientOptions constructs default ClientOptions
 func DefaultClientOptions() *ClientOptions {
 	return &ClientOptions{
 		HTTPClient: &http.Client{},
@@ -129,10 +181,11 @@ func DefaultClientOptions() *ClientOptions {
 			return sanitizePath(data.Title)
 		},
 		Log:     func(string) {},
-		Anilist: DefaultAnilistOptions(),
+		Anilist: NewAnilist(DefaultAnilistOptions()),
 	}
 }
 
+// ComicInfoOptions tweaks ComicInfoXml generation
 type ComicInfoOptions struct {
 	// AddDate whether to add series release date or not
 	AddDate bool
@@ -145,6 +198,7 @@ type ComicInfoOptions struct {
 	TagRelevanceThreshold int
 }
 
+// DefaultComicInfoOptions constructs default ComicInfoOptions
 func DefaultComicInfoOptions() *ComicInfoOptions {
 	return &ComicInfoOptions{
 		AddDate:               true,
