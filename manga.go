@@ -40,7 +40,7 @@ type Page interface {
 	GetExtension() string
 }
 
-type PageWithImage struct {
-	Page
-	io.Reader
+type PageWithImage[P Page] struct {
+	Page  P
+	Image io.Reader
 }

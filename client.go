@@ -17,11 +17,11 @@ import (
 // NewClient creates a new client from ProviderLoader.
 // ClientOptions must be non-nil. Use DefaultClientOptions for defaults.
 // It will validate ProviderLoader.Info and load the provider.
-func NewClient(
+func NewClient[M Manga, V Volume, C Chapter, P Page](
 	ctx context.Context,
-	loader ProviderLoader,
+	loader ProviderLoader[M, V, C, P],
 	options *ClientOptions,
-) (*Client, error) {
+) (*Client[M, V, C, P], error) {
 	if err := loader.Info().Validate(); err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func NewClient(
 		return nil, err
 	}
 
-	return &Client{
+	return &Client[M, V, C, P]{
 		provider: provider,
 		options:  options,
 	}, nil
@@ -39,46 +39,46 @@ func NewClient(
 
 // Client is the wrapper around Provider with the extended functionality.
 // It's the core of the libmangal
-type Client struct {
+type Client[M Manga, V Volume, C Chapter, P Page] struct {
 	rawScript []byte
-	provider  Provider
+	provider  Provider[M, V, C, P]
 	options   *ClientOptions
 }
 
 // SearchMangas searches for mangas with the given query
-func (c *Client) SearchMangas(ctx context.Context, query string) ([]Manga, error) {
+func (c *Client[M, V, C, P]) SearchMangas(ctx context.Context, query string) ([]M, error) {
 	return c.provider.SearchMangas(ctx, c.options.Log, query)
 }
 
 // MangaVolumes gets chapters of the given manga
-func (c *Client) MangaVolumes(ctx context.Context, manga Manga) ([]Volume, error) {
+func (c *Client[M, V, C, P]) MangaVolumes(ctx context.Context, manga M) ([]V, error) {
 	return c.provider.MangaVolumes(ctx, c.options.Log, manga)
 }
 
 // VolumeChapters gets chapters of the given manga
-func (c *Client) VolumeChapters(ctx context.Context, volume Volume) ([]Chapter, error) {
+func (c *Client[M, V, C, P]) VolumeChapters(ctx context.Context, volume V) ([]C, error) {
 	return c.provider.VolumeChapters(ctx, c.options.Log, volume)
 }
 
 // ChapterPages gets pages of the given chapter
-func (c *Client) ChapterPages(ctx context.Context, chapter Chapter) ([]Page, error) {
+func (c *Client[M, V, C, P]) ChapterPages(ctx context.Context, chapter C) ([]P, error) {
 	return c.provider.ChapterPages(ctx, c.options.Log, chapter)
 }
 
-func (c *Client) String() string {
+func (c *Client[M, V, C, P]) String() string {
 	return c.provider.Info().Name
 }
 
 // Info returns info about provider
-func (c *Client) Info() ProviderInfo {
+func (c *Client[M, V, C, P]) Info() ProviderInfo {
 	return c.provider.Info()
 }
 
 // DownloadChapter downloads and saves chapter to the specified
 // directory in the given format.
-func (c *Client) DownloadChapter(
+func (c *Client[M, V, C, P]) DownloadChapter(
 	ctx context.Context,
-	chapter Chapter,
+	chapter C,
 	dir string,
 	options *DownloadOptions,
 ) (string, error) {
@@ -192,9 +192,9 @@ func (c *Client) DownloadChapter(
 }
 
 // downloadChapter is a helper function for DownloadChapter
-func (c *Client) downloadChapter(
+func (c *Client[M, V, C, P]) downloadChapter(
 	ctx context.Context,
-	chapter Chapter,
+	chapter C,
 	path string,
 	options *DownloadOptions,
 ) error {
@@ -238,15 +238,15 @@ func (c *Client) downloadChapter(
 // by calling DownloadPage for each page in a separate goroutines.
 // If any of the pages fails to download it will stop downloading other pages
 // and return error immediately
-func (c *Client) DownloadPagesInBatch(
+func (c *Client[M, V, C, P]) DownloadPagesInBatch(
 	ctx context.Context,
-	pages []Page,
-) ([]*PageWithImage, error) {
+	pages []P,
+) ([]*PageWithImage[P], error) {
 	c.options.Log(fmt.Sprintf("Downloading %d pages", len(pages)))
 
 	g, _ := errgroup.WithContext(ctx)
 
-	downloadedPages := make([]*PageWithImage, len(pages))
+	downloadedPages := make([]*PageWithImage[P], len(pages))
 
 	for i, page := range pages {
 		i, page := i, page
@@ -273,8 +273,8 @@ func (c *Client) DownloadPagesInBatch(
 }
 
 // SavePDF saves pages in FormatPDF
-func (c *Client) SavePDF(
-	pages []*PageWithImage,
+func (c *Client[M, V, C, P]) SavePDF(
+	pages []*PageWithImage[P],
 	path string,
 ) error {
 	c.options.Log(fmt.Sprintf("Saving %d pages as PDF", len(pages)))
@@ -290,15 +290,15 @@ func (c *Client) SavePDF(
 	// convert to readers
 	var images = make([]io.Reader, len(pages))
 	for i, page := range pages {
-		images[i] = page.Reader
+		images[i] = page.Image
 	}
 
 	return api.ImportImages(nil, file, images, nil, nil)
 }
 
 // SaveCBZ saves pages in FormatCBZ
-func (c *Client) SaveCBZ(
-	pages []*PageWithImage,
+func (c *Client[M, V, C, P]) SaveCBZ(
+	pages []*PageWithImage[P],
 	path string,
 	comicInfoXml *ComicInfoXml,
 ) error {
@@ -318,14 +318,14 @@ func (c *Client) SaveCBZ(
 	for i, page := range pages {
 		c.options.Log(fmt.Sprintf("Saving page #%d", i))
 
-		if page.Reader == nil {
+		if page.Image == nil {
 			// this should not occur, but just for the safety
-			return fmt.Errorf("reader %d is nil", i)
+			return fmt.Errorf("image %d is nil", i)
 		}
 
 		var writer io.Writer
 		writer, err = zipWriter.CreateHeader(&zip.FileHeader{
-			Name:   fmt.Sprintf("%04d%s", i+1, page.GetExtension()),
+			Name:   fmt.Sprintf("%04d%s", i+1, page.Page.GetExtension()),
 			Method: zip.Store,
 		})
 
@@ -333,7 +333,7 @@ func (c *Client) SaveCBZ(
 			return err
 		}
 
-		_, err = io.Copy(writer, page.Reader)
+		_, err = io.Copy(writer, page.Image)
 		if err != nil {
 			return err
 		}
@@ -363,8 +363,8 @@ func (c *Client) SaveCBZ(
 }
 
 // SaveImages saves pages in FormatImages
-func (c *Client) SaveImages(
-	pages []*PageWithImage,
+func (c *Client[M, V, C, P]) SaveImages(
+	pages []*PageWithImage[P],
 	path string,
 ) error {
 	c.options.Log(fmt.Sprintf("Saving %d pages as images dir", len(pages)))
@@ -376,18 +376,18 @@ func (c *Client) SaveImages(
 	for i, page := range pages {
 		c.options.Log(fmt.Sprintf("Saving page #%d", i))
 
-		if page.Reader == nil {
+		if page.Image == nil {
 			// this should not occur, but just for the safety
 			return fmt.Errorf("reader %d is nil", i)
 		}
 
 		var file afero.File
-		file, err = c.options.FS.Create(filepath.Join(path, fmt.Sprintf("%04d%s", i+1, page.GetExtension())))
+		file, err = c.options.FS.Create(filepath.Join(path, fmt.Sprintf("%04d%s", i+1, page.Page.GetExtension())))
 		if err != nil {
 			return err
 		}
 
-		_, err = io.Copy(file, page)
+		_, err = io.Copy(file, page.Image)
 		if err != nil {
 			return err
 		}
@@ -399,15 +399,15 @@ func (c *Client) SaveImages(
 }
 
 // DownloadPage downloads a page contents (image)
-func (c *Client) DownloadPage(ctx context.Context, page Page) (*PageWithImage, error) {
+func (c *Client[M, V, C, P]) DownloadPage(ctx context.Context, page P) (*PageWithImage[P], error) {
 	reader, err := c.provider.GetPageImage(ctx, c.options.Log, page)
 	if err != nil {
 		return nil, err
 	}
 
-	return &PageWithImage{
-		Page:   page,
-		Reader: reader,
+	return &PageWithImage[P]{
+		Page:  page,
+		Image: reader,
 	}, nil
 }
 
@@ -416,7 +416,7 @@ func (c *Client) DownloadPage(ctx context.Context, page Page) (*PageWithImage, e
 // E.g. `xdg-open` for Linux.
 //
 // Note: works only for afero.OsFs
-func (c *Client) ReadChapter(ctx context.Context, chapter Chapter, options *ReadOptions) error {
+func (c *Client[M, V, C, P]) ReadChapter(ctx context.Context, chapter C, options *ReadOptions) error {
 	if c.options.FS.Name() != "OsFs" {
 		return fmt.Errorf("only OsFs is supported for reading")
 	}
@@ -467,7 +467,7 @@ func (c *Client) ReadChapter(ctx context.Context, chapter Chapter, options *Read
 
 // IsChapterDownloaded checks if chapter is downloaded.
 // It will simply check if path dir/manga/chapter exists
-func (c *Client) IsChapterDownloaded(
+func (c *Client[M, V, C, P]) IsChapterDownloaded(
 	chapter Chapter,
 	dir string,
 	format Format,
@@ -497,7 +497,7 @@ type Filenames struct {
 
 // ComputeFilenames will apply name templates for chapter and manga
 // and return resulting strings.
-func (c *Client) ComputeFilenames(
+func (c *Client[M, V, C, P]) ComputeFilenames(
 	chapter Chapter,
 	format Format,
 ) (filenames Filenames) {

@@ -57,7 +57,7 @@ function SearchMangas(query)
     return mangas
 end
 
-function MangaChapters(manga)
+function MangaVolumes(manga)
     local req = http.request(http.MethodGet, manga.url)
     req:header("User-Agent", user_agent)
     local res = req:send()
@@ -84,7 +84,18 @@ function MangaChapters(manga)
         table.insert(chapters, chapter)
     end)
 
-    return mangal.util.reverse(chapters)
+    chapters = mangal.util.reverse(chapters)
+
+    return {
+        {
+            number = 1,
+            chapters = chapters,
+        }
+    }
+end
+
+function VolumeChapters(volume)
+    return volume.chapters
 end
 
 function ChapterPages(chapter)
