@@ -4,46 +4,36 @@ import (
 	"io"
 )
 
-//type Title struct {
-//	Display string
-//	Anilist string
-//}
-//
-//type Cover struct {
-//	URL     string
-//	Referer string
-//}
-//
-//type MangaInfo struct {
-//	Title Title
-//	URL   string
-//	ID    string
-//	Cover Cover
-//}
-
-type Manga interface {
-	GetTitle() string
-	GetURL() string
-	GetID() string
-	GetCoverURL() string
+type MangaInfo struct {
+	Title   string
+	Anilist string
+	URL     string
+	ID      string
+	Cover   string
 }
 
-type MangaNameData struct {
-	Title string
-	Id    string
+type Manga interface {
+	Info() MangaInfo
+}
+
+type VolumeInfo struct {
+	Number    int
+	MangaInfo func() MangaInfo
+}
+
+type Volume interface {
+	Info() VolumeInfo
+}
+
+type ChapterInfo struct {
+	Title      string
+	URL        string
+	Number     string
+	VolumeInfo func() VolumeInfo
 }
 
 type Chapter interface {
-	GetTitle() string
-	GetURL() string
-	GetNumber() string
-	GetManga() Manga
-}
-
-type ChapterNameData struct {
-	Title      string
-	Number     string
-	MangaTitle string
+	Info() ChapterInfo
 }
 
 type Page interface {

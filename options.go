@@ -16,6 +16,9 @@ type DownloadOptions struct {
 	// Format in which a chapter must be downloaded
 	Format Format
 
+	CreateMangaDir  bool
+	CreateVolumeDir bool
+
 	// SkipIfExists will skip downloading chapter if its already downloaded (exists)
 	SkipIfExists bool
 
@@ -134,17 +137,23 @@ type ClientOptions struct {
 	// that the client will use.
 	FS afero.Fs
 
+	// ChapterNameTemplate defines how mangas filenames will look when downloaded.
+	MangaNameTemplate func(
+		provider string,
+		info MangaInfo,
+	) string
+
+	// ChapterNameTemplate defines how volumes filenames will look when downloaded.
+	VolumeNameTemplate func(
+		provider string,
+		info VolumeInfo,
+	) string
+
 	// ChapterNameTemplate defines how chapters filenames will look when downloaded.
 	// E.g. "[001] chapter 1" or "Chainsaw Man - Ch. 1"
 	ChapterNameTemplate func(
 		provider string,
-		data ChapterNameData,
-	) string
-
-	// ChapterNameTemplate defines how mangas filenames will look when downloaded.
-	MangaNameTemplate func(
-		provider string,
-		data MangaNameData,
+		info ChapterInfo,
 	) string
 
 	// Log is a function that will be passed to the provider
@@ -160,25 +169,28 @@ func DefaultClientOptions() *ClientOptions {
 	return &ClientOptions{
 		HTTPClient: &http.Client{},
 		FS:         afero.NewOsFs(),
-		ChapterNameTemplate: func(_ string, data ChapterNameData) string {
+		ChapterNameTemplate: func(_ string, info ChapterInfo) string {
 			var numStr string
 
-			asInt, err := strconv.ParseInt(data.Number, 10, 64)
+			asInt, err := strconv.ParseInt(info.Number, 10, 64)
 			if err == nil {
 				numStr = fmt.Sprintf("%04d", asInt)
 			} else {
-				asFloat, err := strconv.ParseFloat(data.Number, 64)
+				asFloat, err := strconv.ParseFloat(info.Number, 64)
 				if err == nil {
 					numStr = fmt.Sprintf("%04.1f", asFloat)
 				} else {
-					numStr = data.Number
+					numStr = info.Number
 				}
 			}
 
-			return sanitizePath(fmt.Sprintf("[%s] %s", numStr, data.Title))
+			return sanitizePath(fmt.Sprintf("[%s] %s", numStr, info.Title))
 		},
-		MangaNameTemplate: func(_ string, data MangaNameData) string {
-			return sanitizePath(data.Title)
+		MangaNameTemplate: func(_ string, info MangaInfo) string {
+			return sanitizePath(info.Title)
+		},
+		VolumeNameTemplate: func(provider string, info VolumeInfo) string {
+			return sanitizePath(fmt.Sprintf("Vol. %d", info.Number))
 		},
 		Log:     func(string) {},
 		Anilist: NewAnilist(DefaultAnilistOptions()),

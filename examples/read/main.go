@@ -51,12 +51,22 @@ func main() {
 	// get first manga
 	manga := mangas[0]
 
-	chapters, err := client.MangaChapters(
+	volumes, err := client.MangaVolumes(
 		context.Background(),
 		manga,
 	)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	volume := volumes[0]
+
+	chapters, err := client.VolumeChapters(
+		context.Background(),
+		volume,
+	)
+	if err != nil {
+		return
 	}
 
 	// let read the first chapter

@@ -60,7 +60,7 @@ type SeriesJson struct {
 }
 
 type MangaWithAnilist struct {
-	Manga
+	Info    MangaInfo
 	Anilist *AnilistManga
 }
 
@@ -91,7 +91,7 @@ func (m *MangaWithAnilist) SeriesJson() *SeriesJson {
 
 	seriesJson := SeriesJson{}
 	seriesJson.Metadata.Type = "comicSeries"
-	seriesJson.Metadata.Name = m.Manga.GetTitle()
+	seriesJson.Metadata.Name = m.Info.Title
 	seriesJson.Metadata.DescriptionFormatted = m.Anilist.Description
 	seriesJson.Metadata.DescriptionText = m.Anilist.Description
 	seriesJson.Metadata.Status = status
@@ -106,7 +106,7 @@ func (m *MangaWithAnilist) SeriesJson() *SeriesJson {
 }
 
 type ChapterOfMangaWithAnilist struct {
-	Chapter
+	Info             ChapterInfo
 	MangaWithAnilist *MangaWithAnilist
 }
 
@@ -159,10 +159,10 @@ func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options *ComicInfoOptions) *Com
 	return &ComicInfoXml{
 		XmlnsXsd:   "http://www.w3.org/2001/XMLSchema",
 		XmlnsXsi:   "http://www.w3.org/2001/XMLSchema-instance",
-		Title:      c.GetTitle(),
-		Series:     c.GetManga().GetTitle(),
-		Number:     c.GetNumber(),
-		Web:        c.GetURL(),
+		Title:      c.Info.Title,
+		Series:     c.Info.VolumeInfo().MangaInfo().Title,
+		Number:     c.Info.Number,
+		Web:        c.Info.URL,
 		Genre:      strings.Join(c.MangaWithAnilist.Anilist.Genres, ","),
 		PageCount:  0,
 		Summary:    c.MangaWithAnilist.Anilist.Description,

@@ -55,15 +55,24 @@ type Provider interface {
 	// Implementation should utilize given LogFunc
 	SearchMangas(
 		ctx context.Context,
-		log LogFunc, query string,
+		log LogFunc,
+		query string,
 	) ([]Manga, error)
 
-	// MangaChapters gets chapters of the given manga.
+	// MangaVolumes gets volumes of the manga
 	// Implementation should utilize given LogFunc
-	MangaChapters(
+	MangaVolumes(
 		ctx context.Context,
 		log LogFunc,
 		manga Manga,
+	) ([]Volume, error)
+
+	// VolumeChapters gets chapters of the given volume.
+	// Implementation should utilize given LogFunc
+	VolumeChapters(
+		ctx context.Context,
+		log LogFunc,
+		volume Volume,
 	) ([]Chapter, error)
 
 	// ChapterPages gets pages of the given chapter.
@@ -74,9 +83,9 @@ type Provider interface {
 		chapter Chapter,
 	) ([]Page, error)
 
-	// GetImage gets raw image contents of the given page.
+	// GetPageImage gets raw image contents of the given page.
 	// Implementation should utilize given LogFunc
-	GetImage(
+	GetPageImage(
 		ctx context.Context,
 		log LogFunc,
 		page Page,

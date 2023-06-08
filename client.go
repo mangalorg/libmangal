@@ -50,9 +50,14 @@ func (c *Client) SearchMangas(ctx context.Context, query string) ([]Manga, error
 	return c.provider.SearchMangas(ctx, c.options.Log, query)
 }
 
-// MangaChapters gets chapters of the given manga
-func (c *Client) MangaChapters(ctx context.Context, manga Manga) ([]Chapter, error) {
-	return c.provider.MangaChapters(ctx, c.options.Log, manga)
+// MangaVolumes gets chapters of the given manga
+func (c *Client) MangaVolumes(ctx context.Context, manga Manga) ([]Volume, error) {
+	return c.provider.MangaVolumes(ctx, c.options.Log, manga)
+}
+
+// VolumeChapters gets chapters of the given manga
+func (c *Client) VolumeChapters(ctx context.Context, volume Volume) ([]Chapter, error) {
+	return c.provider.VolumeChapters(ctx, c.options.Log, volume)
 }
 
 // ChapterPages gets pages of the given chapter
@@ -81,23 +86,32 @@ func (c *Client) DownloadChapter(
 		return "", fmt.Errorf("unsupported format")
 	}
 
-	c.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter.GetTitle(), options.Format.String()))
+	c.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter.Info().Title, options.Format.String()))
+	filenames := c.ComputeFilenames(chapter, options.Format)
 
-	mangaFilename, chapterFilename := c.ComputeFilenames(chapter, options.Format)
-
-	var (
-		mangaPath   = filepath.Join(dir, mangaFilename)
-		chapterPath = filepath.Join(mangaPath, chapterFilename)
-	)
-
-	exists, err := afero.Exists(c.options.FS, chapterPath)
-	if err != nil {
-		return chapterFilename, nil
+	if options.CreateMangaDir {
+		dir = filepath.Join(dir, filenames.Manga)
 	}
 
-	if exists && options.SkipIfExists {
-		c.options.Log(fmt.Sprintf("Chapter %q already exists, skipping", chapter.GetTitle()))
-		return chapterFilename, nil
+	if options.CreateVolumeDir {
+		dir = filepath.Join(dir, filenames.Volume)
+	}
+
+	err := c.options.FS.MkdirAll(dir, 0755)
+	if err != nil {
+		return "", err
+	}
+
+	chapterPath := filepath.Join(dir, filenames.Chapter)
+
+	chapterExists, err := afero.Exists(c.options.FS, chapterPath)
+	if err != nil {
+		return "", err
+	}
+
+	if chapterExists && options.SkipIfExists {
+		c.options.Log(fmt.Sprintf("Chapter %q already exists, skipping", chapter.Info().Title))
+		return filenames.Chapter, nil
 	}
 
 	// create a temp dir where chapter will be downloaded.
@@ -107,28 +121,15 @@ func (c *Client) DownloadChapter(
 		return "", err
 	}
 
-	var (
-		mangaTempPath   = filepath.Join(tempDir, mangaFilename)
-		chapterTempPath = filepath.Join(mangaTempPath, chapterFilename)
-	)
-
-	err = c.options.FS.MkdirAll(mangaTempPath, 0755)
-	if err != nil {
-		return "", err
-	}
+	chapterTempPath := filepath.Join(tempDir, filenames.Chapter)
 
 	err = c.downloadChapter(ctx, chapter, chapterTempPath, options)
 	if err != nil {
 		return "", err
 	}
 
-	err = c.options.FS.MkdirAll(mangaPath, 0755)
-	if err != nil {
-		return "", err
-	}
-
-	if exists {
-		c.options.Log(fmt.Sprintf("Chapter %q already exists, removing", chapter.GetTitle()))
+	if chapterExists {
+		c.options.Log(fmt.Sprintf("Chapter %q already exists, removing", chapter.Info().Title))
 		if options.Format == FormatImages {
 			err = c.options.FS.RemoveAll(chapterPath)
 		} else {
@@ -145,13 +146,13 @@ func (c *Client) DownloadChapter(
 	}
 
 	if options.WriteSeriesJson {
-		manga, err := c.options.Anilist.MakeMangaWithAnilist(ctx, chapter.GetManga())
+		manga, err := c.options.Anilist.MakeMangaWithAnilist(ctx, chapter.Info().VolumeInfo().MangaInfo())
 		if err != nil {
 			return "", err
 		}
 
 		seriesJson := manga.SeriesJson()
-		seriesJsonPath := filepath.Join(mangaPath, seriesJsonFilename)
+		seriesJsonPath := filepath.Join(dir, seriesJsonFilename)
 
 		marshalled, err := json.Marshal(seriesJson)
 		if err != nil {
@@ -165,11 +166,12 @@ func (c *Client) DownloadChapter(
 	}
 
 	if options.DownloadMangaCover {
-		err = c.downloadCoverIfNotExists(
-			ctx,
-			chapter.GetManga(),
-			mangaPath,
-		)
+		// TODO
+		//err = c.downloadCoverIfNotExists(
+		//	ctx,
+		//	chapter.GetManga(),
+		//	mangaPath,
+		//)
 
 		if err != nil {
 			return "", err
@@ -187,72 +189,6 @@ func (c *Client) DownloadChapter(
 	}
 
 	return chapterPath, nil
-}
-
-// downloadCoverIfNotExists will download manga chapter
-// and save it as a cover.jpg in the specified directory.
-// It will also try to convert Manga to MangaWithAnilist
-// to obtain a better cover image. If it fails to do so,
-// then it will use Manga.CoverUrl.
-func (c *Client) downloadCoverIfNotExists(
-	ctx context.Context,
-	manga Manga,
-	dir string,
-) error {
-	return nil
-
-	//const coverFilename = "cover.jpg"
-	//
-	//exists, err := afero.Exists(c.options.FS, filepath.Join(dir, coverFilename))
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//if exists {
-	//	return nil
-	//}
-	//
-	//var coverUrl string
-	//
-	//if manga, err := c.MakeMangaWithAnilist(ctx, manga); err != nil {
-	//	for _, url := range []string{
-	//		manga.Anilist.CoverImage.ExtraLarge,
-	//		// no need to check `Large` cover, see `ExtraLarge` description
-	//		manga.Anilist.CoverImage.Medium,
-	//		manga.GetCoverURL(),
-	//	} {
-	//		if url != "" {
-	//			coverUrl = url
-	//			break
-	//		}
-	//	}
-	//} else {
-	//	coverUrl = manga.GetCoverURL()
-	//}
-	//
-	//if coverUrl == "" {
-	//	return fmt.Errorf("cover url is empty")
-	//}
-	//
-	//c.options.Log("downloading cover")
-	//
-	//panic("unimplemented")
-
-	//
-	//cover := Page{
-	//	Url: coverUrl,
-	//}
-	//
-	//downloaded, err := c.DownloadPage(ctx, &cover)
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//return afero.WriteReader(
-	//	c.options.FS,
-	//	filepath.Join(dir, coverFilename),
-	//	downloaded,
-	//)
 }
 
 // downloadChapter is a helper function for DownloadChapter
@@ -278,7 +214,7 @@ func (c *Client) downloadChapter(
 	case FormatCBZ:
 		var comicInfo *ComicInfoXml
 		if options.WriteComicInfoXml {
-			chapter, err := c.options.Anilist.MakeChapterWithAnilist(ctx, chapter)
+			chapter, err := c.options.Anilist.MakeChapterWithAnilist(ctx, chapter.Info())
 			if err != nil {
 				return err
 			}
@@ -464,7 +400,7 @@ func (c *Client) SaveImages(
 
 // DownloadPage downloads a page contents (image)
 func (c *Client) DownloadPage(ctx context.Context, page Page) (*PageWithImage, error) {
-	reader, err := c.provider.GetImage(ctx, c.options.Log, page)
+	reader, err := c.provider.GetPageImage(ctx, c.options.Log, page)
 	if err != nil {
 		return nil, err
 	}
@@ -485,17 +421,17 @@ func (c *Client) ReadChapter(ctx context.Context, chapter Chapter, options *Read
 		return fmt.Errorf("only OsFs is supported for reading")
 	}
 
-	c.options.Log(fmt.Sprintf("Reading chapter %q as %s", chapter.GetTitle(), options.Format))
+	c.options.Log(fmt.Sprintf("Reading chapter %q as %s", chapter.Info().Title, options.Format))
 
 	var chapterPath string
 	if options.MangasLibraryPath != "" {
-		path, ok, err := c.IsChapterDownloaded(chapter, options.MangasLibraryPath, options.Format)
+		path, ok, err := c.IsChapterDownloaded(chapter, options.MangasLibraryPath, options.Format, false)
 		if err != nil {
 			return err
 		}
 
 		if ok {
-			c.options.Log(fmt.Sprintf("Chapter %q is already downloaded", chapter.GetTitle()))
+			c.options.Log(fmt.Sprintf("Chapter %q is already downloaded", chapter.Info().Title))
 			chapterPath = path
 		}
 	}
@@ -518,7 +454,7 @@ func (c *Client) ReadChapter(ctx context.Context, chapter Chapter, options *Read
 		}
 	}
 
-	c.options.Log(fmt.Sprintf("Opening chapter %q with default app", chapter.GetTitle()))
+	c.options.Log(fmt.Sprintf("Opening chapter %q with default app", chapter.Info().Title))
 	err := open.Run(chapterPath)
 	if err != nil {
 		return err
@@ -535,10 +471,17 @@ func (c *Client) IsChapterDownloaded(
 	chapter Chapter,
 	dir string,
 	format Format,
+	withVolume bool,
 ) (path string, ok bool, err error) {
-	mangaFilename, chapterFilename := c.ComputeFilenames(chapter, format)
+	filenames := c.ComputeFilenames(chapter, format)
 
-	path = filepath.Join(dir, mangaFilename, chapterFilename)
+	path = filepath.Join(dir, filenames.Manga)
+
+	if withVolume {
+		path = filepath.Join(path, filenames.Volume)
+	}
+
+	path = filepath.Join(path, filenames.Chapter)
 
 	exists, err := afero.Exists(c.options.FS, path)
 	if err != nil {
@@ -548,33 +491,38 @@ func (c *Client) IsChapterDownloaded(
 	return path, exists, nil
 }
 
+type Filenames struct {
+	Manga, Volume, Chapter string
+}
+
 // ComputeFilenames will apply name templates for chapter and manga
 // and return resulting strings.
 func (c *Client) ComputeFilenames(
 	chapter Chapter,
 	format Format,
-) (mangaFilename, chapterFilename string) {
-	mangaFilename = c.options.MangaNameTemplate(
+) (filenames Filenames) {
+	chapterInfo := chapter.Info()
+	volumeInfo := chapterInfo.VolumeInfo()
+
+	filenames.Manga = c.options.MangaNameTemplate(
 		c.String(),
-		MangaNameData{
-			Title: chapter.GetManga().GetTitle(),
-			Id:    chapter.GetManga().GetID(),
-		},
+		volumeInfo.MangaInfo(),
 	)
 
-	chapterFilename = c.options.ChapterNameTemplate(
+	filenames.Volume = c.options.VolumeNameTemplate(
 		c.String(),
-		ChapterNameData{
-			Title:      chapter.GetTitle(),
-			Number:     chapter.GetNumber(),
-			MangaTitle: chapter.GetManga().GetTitle(),
-		},
+		volumeInfo,
+	)
+
+	filenames.Chapter = c.options.ChapterNameTemplate(
+		c.String(),
+		chapterInfo,
 	)
 
 	extension, ok := FormatExtensions[format]
 	if ok {
-		chapterFilename += extension
+		filenames.Chapter += extension
 	}
 
-	return mangaFilename, chapterFilename
+	return filenames
 }

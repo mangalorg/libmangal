@@ -289,26 +289,26 @@ func (a *Anilist) BindTitleWithId(title string, anilistMangaId int) error {
 	return a.options.TitleToIdStore.Set(title, anilistMangaId)
 }
 
-func (a *Anilist) MakeMangaWithAnilist(ctx context.Context, manga Manga) (*MangaWithAnilist, error) {
-	anilistManga, err := a.FindClosestManga(ctx, manga.GetTitle())
+func (a *Anilist) MakeMangaWithAnilist(ctx context.Context, manga MangaInfo) (*MangaWithAnilist, error) {
+	anilistManga, err := a.FindClosestManga(ctx, manga.Title)
 	if err != nil {
 		return nil, err
 	}
 
 	return &MangaWithAnilist{
-		Manga:   manga,
+		Info:    manga,
 		Anilist: anilistManga,
 	}, nil
 }
 
-func (a *Anilist) MakeChapterWithAnilist(ctx context.Context, chapter Chapter) (*ChapterOfMangaWithAnilist, error) {
-	mangaWithAnilist, err := a.MakeMangaWithAnilist(ctx, chapter.GetManga())
+func (a *Anilist) MakeChapterWithAnilist(ctx context.Context, chapter ChapterInfo) (*ChapterOfMangaWithAnilist, error) {
+	mangaWithAnilist, err := a.MakeMangaWithAnilist(ctx, chapter.VolumeInfo().MangaInfo())
 	if err != nil {
 		return nil, err
 	}
 
 	return &ChapterOfMangaWithAnilist{
-		Chapter:          chapter,
+		Info:             chapter,
 		MangaWithAnilist: mangaWithAnilist,
 	}, nil
 }
