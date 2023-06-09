@@ -8,7 +8,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/afero"
 	"net/http"
-	"strconv"
 )
 
 // DownloadOptions configures Chapter downloading
@@ -141,20 +140,21 @@ type ClientOptions struct {
 	// ChapterNameTemplate defines how mangas filenames will look when downloaded.
 	MangaNameTemplate func(
 		provider string,
-		info MangaInfo,
+		manga Manga,
 	) string
 
 	// ChapterNameTemplate defines how volumes filenames will look when downloaded.
+	// E.g. Vol. 1
 	VolumeNameTemplate func(
 		provider string,
-		info VolumeInfo,
+		volume Volume,
 	) string
 
 	// ChapterNameTemplate defines how chapters filenames will look when downloaded.
 	// E.g. "[001] chapter 1" or "Chainsaw Man - Ch. 1"
 	ChapterNameTemplate func(
 		provider string,
-		info ChapterInfo,
+		chapter Chapter,
 	) string
 
 	// Log is a function that will be passed to the provider
@@ -170,28 +170,16 @@ func DefaultClientOptions() *ClientOptions {
 	return &ClientOptions{
 		HTTPClient: &http.Client{},
 		FS:         afero.NewOsFs(),
-		ChapterNameTemplate: func(_ string, info ChapterInfo) string {
-			var numStr string
-
-			asInt, err := strconv.ParseInt(info.Number, 10, 64)
-			if err == nil {
-				numStr = fmt.Sprintf("%04d", asInt)
-			} else {
-				asFloat, err := strconv.ParseFloat(info.Number, 64)
-				if err == nil {
-					numStr = fmt.Sprintf("%06.1f", asFloat)
-				} else {
-					numStr = info.Number
-				}
-			}
-
-			return sanitizePath(fmt.Sprintf("[%s] %s", numStr, info.Title))
+		ChapterNameTemplate: func(_ string, chapter Chapter) string {
+			info := chapter.Info()
+			number := fmt.Sprintf("%06.1f", info.Number)
+			return sanitizePath(fmt.Sprintf("[%s] %s", number, info.Title))
 		},
-		MangaNameTemplate: func(_ string, info MangaInfo) string {
-			return sanitizePath(info.Title)
+		MangaNameTemplate: func(_ string, manga Manga) string {
+			return sanitizePath(manga.Info().Title)
 		},
-		VolumeNameTemplate: func(provider string, info VolumeInfo) string {
-			return sanitizePath(fmt.Sprintf("Vol. %d", info.Number))
+		VolumeNameTemplate: func(_ string, volume Volume) string {
+			return sanitizePath(fmt.Sprintf("Vol. %d", volume.Info().Number))
 		},
 		Log:     func(string) {},
 		Anilist: NewAnilist(DefaultAnilistOptions()),

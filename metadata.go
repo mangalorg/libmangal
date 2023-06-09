@@ -19,25 +19,25 @@ type ComicInfoXml struct {
 	XmlnsXsi string   `xml:"xmlns:xsi,attr"`
 	XmlnsXsd string   `xml:"xmlns:xsd,attr"`
 
-	Title      string `xml:"Title,omitempty"`
-	Series     string `xml:"Series,omitempty"`
-	Number     string `xml:"Number,omitempty"`
-	Web        string `xml:"Web,omitempty"`
-	Genre      string `xml:"Genre,omitempty"`
-	PageCount  int    `xml:"PageCount,omitempty"`
-	Summary    string `xml:"Summary,omitempty"`
-	Count      int    `xml:"Count,omitempty"`
-	Characters string `xml:"Characters,omitempty"`
-	Year       int    `xml:"Year,omitempty"`
-	Month      int    `xml:"Month,omitempty"`
-	Day        int    `xml:"Day,omitempty"`
-	Writer     string `xml:"Writer,omitempty"`
-	Penciller  string `xml:"Penciller,omitempty"`
-	Letterer   string `xml:"Letterer,omitempty"`
-	Translator string `xml:"Translator,omitempty"`
-	Tags       string `xml:"Tags,omitempty"`
-	Notes      string `xml:"Notes,omitempty"`
-	Manga      string `xml:"Manga,omitempty"`
+	Title      string  `xml:"Title,omitempty"`
+	Series     string  `xml:"Series,omitempty"`
+	Number     float32 `xml:"Number,omitempty"`
+	Web        string  `xml:"Web,omitempty"`
+	Genre      string  `xml:"Genre,omitempty"`
+	PageCount  int     `xml:"PageCount,omitempty"`
+	Summary    string  `xml:"Summary,omitempty"`
+	Count      int     `xml:"Count,omitempty"`
+	Characters string  `xml:"Characters,omitempty"`
+	Year       int     `xml:"Year,omitempty"`
+	Month      int     `xml:"Month,omitempty"`
+	Day        int     `xml:"Day,omitempty"`
+	Writer     string  `xml:"Writer,omitempty"`
+	Penciller  string  `xml:"Penciller,omitempty"`
+	Letterer   string  `xml:"Letterer,omitempty"`
+	Translator string  `xml:"Translator,omitempty"`
+	Tags       string  `xml:"Tags,omitempty"`
+	Notes      string  `xml:"Notes,omitempty"`
+	Manga      string  `xml:"Manga,omitempty"`
 }
 
 // SeriesJson is similar to ComicInfoXml but designed for
@@ -60,11 +60,11 @@ type SeriesJson struct {
 }
 
 type MangaWithAnilist struct {
-	Info    MangaInfo
+	Manga
 	Anilist *AnilistManga
 }
 
-func (m *MangaWithAnilist) SeriesJson() *SeriesJson {
+func (m *MangaWithAnilist) SeriesJson() SeriesJson {
 	var status string
 	switch m.Anilist.Status {
 	case "FINISHED":
@@ -91,7 +91,7 @@ func (m *MangaWithAnilist) SeriesJson() *SeriesJson {
 
 	seriesJson := SeriesJson{}
 	seriesJson.Metadata.Type = "comicSeries"
-	seriesJson.Metadata.Name = m.Info.Title
+	seriesJson.Metadata.Name = m.Info().Title
 	seriesJson.Metadata.DescriptionFormatted = m.Anilist.Description
 	seriesJson.Metadata.DescriptionText = m.Anilist.Description
 	seriesJson.Metadata.Status = status
@@ -102,15 +102,15 @@ func (m *MangaWithAnilist) SeriesJson() *SeriesJson {
 	seriesJson.Metadata.TotalIssues = m.Anilist.Chapters
 	seriesJson.Metadata.PublicationRun = publicationRun
 
-	return &seriesJson
+	return seriesJson
 }
 
 type ChapterOfMangaWithAnilist struct {
-	Info             ChapterInfo
+	Chapter
 	MangaWithAnilist *MangaWithAnilist
 }
 
-func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options *ComicInfoOptions) *ComicInfoXml {
+func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options *ComicInfoOptions) ComicInfoXml {
 	var characters = make([]string, len(c.MangaWithAnilist.Anilist.Characters.Nodes))
 	for i, node := range c.MangaWithAnilist.Anilist.Characters.Nodes {
 		characters[i] = node.Name.Full
@@ -156,13 +156,13 @@ func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options *ComicInfoOptions) *Com
 		tags = append(tags, tag.Name)
 	}
 
-	return &ComicInfoXml{
+	return ComicInfoXml{
 		XmlnsXsd:   "http://www.w3.org/2001/XMLSchema",
 		XmlnsXsi:   "http://www.w3.org/2001/XMLSchema-instance",
-		Title:      c.Info.Title,
-		Series:     c.Info.VolumeInfo().MangaInfo().Title,
-		Number:     c.Info.Number,
-		Web:        c.Info.URL,
+		Title:      c.Info().Title,
+		Series:     c.Volume().Manga().Info().Title,
+		Number:     c.Info().Number,
+		Web:        c.Info().URL,
 		Genre:      strings.Join(c.MangaWithAnilist.Anilist.Genres, ","),
 		PageCount:  0,
 		Summary:    c.MangaWithAnilist.Anilist.Description,

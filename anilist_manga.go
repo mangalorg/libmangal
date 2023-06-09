@@ -11,7 +11,7 @@ type AnilistManga struct {
 		Native string `json:"native" jsonschema:"description=Native title of the manga. Usually in kanji."`
 	} `json:"title"`
 	// ID is the id of the manga on Anilist.
-	ID int `json:"id" jsonschema:"description=ID of the manga on Anilist."`
+	ID int `json:"id" jsonschema:"description=ID of the manga on AnilistSearch."`
 	// Description is the description of the manga in html format.
 	Description string `json:"description" jsonschema:"description=Description of the manga in html format."`
 	// CoverImage is the cover image of the manga.
@@ -73,7 +73,7 @@ type AnilistManga struct {
 	// Chapters is the amount of chapters the manga has when complete.
 	Chapters int `json:"chapters" jsonschema:"description=Amount of chapters the manga has when complete."`
 	// SiteURL is the url of the manga on Anilist.
-	SiteURL string `json:"siteUrl" jsonschema:"description=URL of the manga on Anilist."`
+	SiteURL string `json:"siteUrl" jsonschema:"description=URL of the manga on AnilistSearch."`
 	// Country of origin of the manga.
 	Country string `json:"countryOfOrigin" jsonschema:"description=Country of origin of the manga."`
 	// External urls related to the manga.

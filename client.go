@@ -146,12 +146,18 @@ func (c *Client[M, V, C, P]) DownloadChapter(
 	}
 
 	if options.WriteSeriesJson {
-		manga, err := c.options.Anilist.MakeMangaWithAnilist(ctx, chapter.Info().VolumeInfo().MangaInfo())
-		if err != nil {
-			return "", err
+		var seriesJson SeriesJson
+
+		seriesJson, ok := chapter.Volume().Manga().SeriesJson()
+		if !ok {
+			manga, err := c.options.Anilist.MakeMangaWithAnilist(ctx, chapter.Volume().Manga())
+			if err != nil {
+				return "", err
+			}
+
+			seriesJson = manga.SeriesJson()
 		}
 
-		seriesJson := manga.SeriesJson()
 		seriesJsonPath := filepath.Join(dir, seriesJsonFilename)
 
 		marshalled, err := json.Marshal(seriesJson)
@@ -212,17 +218,25 @@ func (c *Client[M, V, C, P]) downloadChapter(
 	case FormatPDF:
 		err = c.SavePDF(downloadedPages, path)
 	case FormatCBZ:
-		var comicInfo *ComicInfoXml
+		var comicInfo ComicInfoXml
 		if options.WriteComicInfoXml {
-			chapter, err := c.options.Anilist.MakeChapterWithAnilist(ctx, chapter.Info())
-			if err != nil {
-				return err
+			var ok bool
+			comicInfo, ok = chapter.ComicInfoXml()
+			if !ok {
+				chapter, err := c.options.Anilist.MakeChapterWithAnilist(ctx, chapter)
+				if err != nil {
+					return err
+				}
+
+				comicInfo = chapter.ComicInfoXml(options.ComicInfoOptions)
 			}
 
-			comicInfo = chapter.ComicInfoXml(options.ComicInfoOptions)
+			// just in case
+			comicInfo.XmlnsXsd = "http://www.w3.org/2001/XMLSchema"
+			comicInfo.XmlnsXsi = "http://www.w3.org/2001/XMLSchema-instance"
 		}
 
-		err = c.SaveCBZ(downloadedPages, path, comicInfo)
+		err = c.SaveCBZ(downloadedPages, path, &comicInfo)
 	case FormatImages:
 		err = c.SaveImages(downloadedPages, path)
 	}
@@ -474,22 +488,22 @@ func (c *Client[M, V, C, P]) ComputeFilenames(
 	chapter Chapter,
 	format Format,
 ) (filenames Filenames) {
-	chapterInfo := chapter.Info()
-	volumeInfo := chapterInfo.VolumeInfo()
+	volume := chapter.Volume()
+	manga := volume.Manga()
 
 	filenames.Manga = c.options.MangaNameTemplate(
 		c.String(),
-		volumeInfo.MangaInfo(),
+		manga,
 	)
 
 	filenames.Volume = c.options.VolumeNameTemplate(
 		c.String(),
-		volumeInfo,
+		volume,
 	)
 
 	filenames.Chapter = c.options.ChapterNameTemplate(
 		c.String(),
-		chapterInfo,
+		chapter,
 	)
 
 	extension, ok := FormatExtensions[format]

@@ -62,7 +62,7 @@ func (a *Anilist) getByID(
 	ctx context.Context,
 	id int,
 ) (*AnilistManga, error) {
-	a.options.Log(fmt.Sprintf("Searching manga with id %d on Anilist", id))
+	a.options.Log(fmt.Sprintf("Searching manga with id %d on AnilistSearch", id))
 
 	body := &anilistRequestBody{
 		Query: anilistQuerySearchByID,
@@ -93,7 +93,7 @@ func (a *Anilist) SearchMangas(
 ) ([]*AnilistManga, error) {
 	query = unifyString(query)
 
-	a.options.Log("Searching manga on Anilist...")
+	a.options.Log("Searching manga on AnilistSearch...")
 
 	{
 		found, ids, err := a.cacheStatusQuery(query)
@@ -163,7 +163,7 @@ func (a *Anilist) searchMangas(
 
 	mangas := data.Page.Media
 
-	a.options.Log(fmt.Sprintf("Found %d manga(s) on Anilist.", len(mangas)))
+	a.options.Log(fmt.Sprintf("Found %d manga(s) on AnilistSearch.", len(mangas)))
 
 	return mangas, nil
 }
@@ -248,7 +248,7 @@ func (a *Anilist) FindClosestManga(
 	ctx context.Context,
 	title string,
 ) (*AnilistManga, bool, error) {
-	a.options.Log("Finding closest manga on Anilist...")
+	a.options.Log("Finding closest manga on AnilistSearch...")
 
 	title = unifyString(title)
 
@@ -302,7 +302,7 @@ func (a *Anilist) findClosestManga(
 	}
 
 	a.options.Log(
-		fmt.Sprintf("Finding closest manga on Anilist (try %d/%d)", try+1, limit),
+		fmt.Sprintf("Finding closest manga on AnilistSearch (try %d/%d)", try+1, limit),
 	)
 
 	mangas, err := a.SearchMangas(ctx, currentTitle)
@@ -335,7 +335,7 @@ func (a *Anilist) findClosestManga(
 		return nil, false, nil
 	}
 
-	a.options.Log(fmt.Sprintf("Found closest manga on Anilist: %q #%d", closest.String(), closest.ID))
+	a.options.Log(fmt.Sprintf("Found closest manga on AnilistSearch: %q #%d", closest.String(), closest.ID))
 	return closest, true, nil
 }
 
@@ -345,9 +345,9 @@ func (a *Anilist) BindTitleWithID(title string, anilistMangaId int) error {
 
 func (a *Anilist) MakeMangaWithAnilist(
 	ctx context.Context,
-	manga MangaInfo,
+	manga Manga,
 ) (*MangaWithAnilist, error) {
-	anilistManga, ok, err := a.FindClosestManga(ctx, manga.Title)
+	anilistManga, ok, err := a.FindClosestManga(ctx, manga.Info().AnilistSearch)
 	if err != nil {
 		return nil, err
 	}
@@ -357,19 +357,19 @@ func (a *Anilist) MakeMangaWithAnilist(
 	}
 
 	return &MangaWithAnilist{
-		Info:    manga,
+		Manga:   manga,
 		Anilist: anilistManga,
 	}, nil
 }
 
-func (a *Anilist) MakeChapterWithAnilist(ctx context.Context, chapter ChapterInfo) (*ChapterOfMangaWithAnilist, error) {
-	mangaWithAnilist, err := a.MakeMangaWithAnilist(ctx, chapter.VolumeInfo().MangaInfo())
+func (a *Anilist) MakeChapterWithAnilist(ctx context.Context, chapter Chapter) (*ChapterOfMangaWithAnilist, error) {
+	mangaWithAnilist, err := a.MakeMangaWithAnilist(ctx, chapter.Volume().Manga())
 	if err != nil {
 		return nil, err
 	}
 
 	return &ChapterOfMangaWithAnilist{
-		Info:             chapter,
+		Chapter:          chapter,
 		MangaWithAnilist: mangaWithAnilist,
 	}, nil
 }
