@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 	"io"
+	"net/http"
 	"path/filepath"
 )
 
@@ -93,7 +95,7 @@ func (c Client[M, V, C, P]) DownloadChapter(
 		dir = filepath.Join(dir, filenames.Volume)
 	}
 
-	err := c.options.FS.MkdirAll(dir, 0755)
+	err := c.options.FS.MkdirAll(dir, modeDefault)
 	if err != nil {
 		return "", err
 	}
@@ -150,13 +152,7 @@ func (c Client[M, V, C, P]) DownloadChapter(
 	}
 
 	if options.DownloadMangaCover {
-		// TODO
-		//err = c.downloadCoverIfNotExists(
-		//	ctx,
-		//	chapter.GetManga(),
-		//	mangaPath,
-		//)
-
+		err := c.downloadCover(ctx, chapter, dir)
 		if err != nil {
 			return "", err
 		}
@@ -173,6 +169,85 @@ func (c Client[M, V, C, P]) DownloadChapter(
 	}
 
 	return chapterPath, nil
+}
+
+func (c Client[M, V, C, P]) downloadCover(ctx context.Context, chapter C, dir string) error {
+	coverPath := filepath.Join(dir, "cover.jpg")
+
+	exists, err := afero.Exists(c.options.FS, coverPath)
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		return nil
+	}
+
+	coverURL, ok, err := c.getCoverURL(ctx, chapter)
+	if err != nil {
+		return err
+	}
+	c.options.Log(coverURL)
+
+	if !ok {
+		return errors.New("cover url not found")
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, coverURL, nil)
+	if err != nil {
+		return err
+	}
+
+	request.Header.Set("Referer", chapter.Volume().Manga().Info().URL)
+	request.Header.Set("User-Agent", UserAgent)
+	request.Header.Set("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
+
+	response, err := c.options.HTTPClient.Do(request)
+	if err != nil {
+		return err
+	}
+
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected http status: %s", response.Status)
+	}
+
+	cover, err := readResponseBody(response.ContentLength, response.Body)
+	if err != nil {
+		return err
+	}
+
+	return afero.WriteFile(c.options.FS, coverPath, cover, modeDefault)
+}
+
+func (c Client[M, V, C, P]) getCoverURL(ctx context.Context, chapter C) (string, bool, error) {
+	manga := chapter.Volume().Manga()
+
+	coverURL := manga.Info().Cover
+	if coverURL != "" {
+		return coverURL, true, nil
+	}
+
+	mangaWithAnilist, ok, err := c.options.Anilist.MakeMangaWithAnilist(ctx, manga)
+	if err != nil {
+		return "", false, err
+	}
+
+	if !ok {
+		return "", false, nil
+	}
+
+	for _, coverURL := range []string{
+		mangaWithAnilist.Anilist.CoverImage.ExtraLarge,
+		mangaWithAnilist.Anilist.CoverImage.Medium,
+	} {
+		if coverURL != "" {
+			return coverURL, true, nil
+		}
+	}
+
+	return "", false, nil
 }
 
 func (c Client[M, V, C, P]) writeSeriesJson(ctx context.Context, chapter C, dir string) error {
@@ -206,7 +281,7 @@ func (c Client[M, V, C, P]) writeSeriesJson(ctx context.Context, chapter C, dir 
 		return err
 	}
 
-	err = afero.WriteFile(c.options.FS, seriesJsonPath, marshalled, 0644)
+	err = afero.WriteFile(c.options.FS, seriesJsonPath, marshalled, modeDefault)
 	if err != nil {
 		return err
 	}
@@ -403,7 +478,7 @@ func (c Client[M, V, C, P]) SaveImages(
 	path string,
 ) error {
 	c.options.Log(fmt.Sprintf("Saving %d pages as images dir", len(pages)))
-	err := c.options.FS.MkdirAll(path, 0755)
+	err := c.options.FS.MkdirAll(path, modeDefault)
 	if err != nil {
 		return err
 	}

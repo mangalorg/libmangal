@@ -13,7 +13,8 @@ type DownloadOptions struct {
 	// Format in which a chapter must be downloaded
 	Format Format
 
-	CreateMangaDir  bool
+	CreateMangaDir bool
+
 	CreateVolumeDir bool
 
 	// SkipIfExists will skip downloading chapter if its already downloaded (exists)
