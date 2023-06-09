@@ -52,6 +52,7 @@ type Provider[M Manga, V Volume, C Chapter, P Page] interface {
 	Info() ProviderInfo
 
 	// SearchMangas searches for mangas with the given query.
+	//
 	// Implementation should utilize given LogFunc
 	SearchMangas(
 		ctx context.Context,
@@ -60,6 +61,7 @@ type Provider[M Manga, V Volume, C Chapter, P Page] interface {
 	) ([]M, error)
 
 	// MangaVolumes gets volumes of the manga
+	//
 	// Implementation should utilize given LogFunc
 	MangaVolumes(
 		ctx context.Context,
@@ -68,6 +70,7 @@ type Provider[M Manga, V Volume, C Chapter, P Page] interface {
 	) ([]V, error)
 
 	// VolumeChapters gets chapters of the given volume.
+	//
 	// Implementation should utilize given LogFunc
 	VolumeChapters(
 		ctx context.Context,
@@ -76,6 +79,7 @@ type Provider[M Manga, V Volume, C Chapter, P Page] interface {
 	) ([]C, error)
 
 	// ChapterPages gets pages of the given chapter.
+	//
 	// Implementation should utilize given LogFunc
 	ChapterPages(
 		ctx context.Context,
@@ -84,6 +88,7 @@ type Provider[M Manga, V Volume, C Chapter, P Page] interface {
 	) ([]P, error)
 
 	// GetPageImage gets raw image contents of the given page.
+	//
 	// Implementation should utilize given LogFunc
 	GetPageImage(
 		ctx context.Context,

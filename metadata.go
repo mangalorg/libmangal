@@ -61,7 +61,7 @@ type SeriesJson struct {
 
 type MangaWithAnilist struct {
 	Manga
-	Anilist *AnilistManga
+	Anilist AnilistManga
 }
 
 func (m *MangaWithAnilist) SeriesJson() SeriesJson {
@@ -107,10 +107,10 @@ func (m *MangaWithAnilist) SeriesJson() SeriesJson {
 
 type ChapterOfMangaWithAnilist struct {
 	Chapter
-	MangaWithAnilist *MangaWithAnilist
+	MangaWithAnilist MangaWithAnilist
 }
 
-func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options *ComicInfoOptions) ComicInfoXml {
+func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options ComicInfoXmlOptions) ComicInfoXml {
 	var characters = make([]string, len(c.MangaWithAnilist.Anilist.Characters.Nodes))
 	for i, node := range c.MangaWithAnilist.Anilist.Characters.Nodes {
 		characters[i] = node.Name.Full
@@ -149,7 +149,7 @@ func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options *ComicInfoOptions) Comi
 
 	var tags = make([]string, 0)
 	for _, tag := range c.MangaWithAnilist.Anilist.Tags {
-		if tag.Rank < options.TagRelevanceThreshold {
+		if tag.Rank < 60 {
 			continue
 		}
 

@@ -20,7 +20,7 @@ import (
 func NewClient[M Manga, V Volume, C Chapter, P Page](
 	ctx context.Context,
 	loader ProviderLoader[M, V, C, P],
-	options *ClientOptions,
+	options ClientOptions,
 ) (*Client[M, V, C, P], error) {
 	if err := loader.Info().Validate(); err != nil {
 		return nil, err
@@ -42,50 +42,46 @@ func NewClient[M Manga, V Volume, C Chapter, P Page](
 type Client[M Manga, V Volume, C Chapter, P Page] struct {
 	rawScript []byte
 	provider  Provider[M, V, C, P]
-	options   *ClientOptions
+	options   ClientOptions
 }
 
 // SearchMangas searches for mangas with the given query
-func (c *Client[M, V, C, P]) SearchMangas(ctx context.Context, query string) ([]M, error) {
+func (c Client[M, V, C, P]) SearchMangas(ctx context.Context, query string) ([]M, error) {
 	return c.provider.SearchMangas(ctx, c.options.Log, query)
 }
 
 // MangaVolumes gets chapters of the given manga
-func (c *Client[M, V, C, P]) MangaVolumes(ctx context.Context, manga M) ([]V, error) {
+func (c Client[M, V, C, P]) MangaVolumes(ctx context.Context, manga M) ([]V, error) {
 	return c.provider.MangaVolumes(ctx, c.options.Log, manga)
 }
 
 // VolumeChapters gets chapters of the given manga
-func (c *Client[M, V, C, P]) VolumeChapters(ctx context.Context, volume V) ([]C, error) {
+func (c Client[M, V, C, P]) VolumeChapters(ctx context.Context, volume V) ([]C, error) {
 	return c.provider.VolumeChapters(ctx, c.options.Log, volume)
 }
 
 // ChapterPages gets pages of the given chapter
-func (c *Client[M, V, C, P]) ChapterPages(ctx context.Context, chapter C) ([]P, error) {
+func (c Client[M, V, C, P]) ChapterPages(ctx context.Context, chapter C) ([]P, error) {
 	return c.provider.ChapterPages(ctx, c.options.Log, chapter)
 }
 
-func (c *Client[M, V, C, P]) String() string {
+func (c Client[M, V, C, P]) String() string {
 	return c.provider.Info().Name
 }
 
 // Info returns info about provider
-func (c *Client[M, V, C, P]) Info() ProviderInfo {
+func (c Client[M, V, C, P]) Info() ProviderInfo {
 	return c.provider.Info()
 }
 
 // DownloadChapter downloads and saves chapter to the specified
 // directory in the given format.
-func (c *Client[M, V, C, P]) DownloadChapter(
+func (c Client[M, V, C, P]) DownloadChapter(
 	ctx context.Context,
 	chapter C,
 	dir string,
-	options *DownloadOptions,
+	options DownloadOptions,
 ) (string, error) {
-	if !options.Format.IsAFormat() {
-		return "", fmt.Errorf("unsupported format")
-	}
-
 	c.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter.Info().Title, options.Format.String()))
 	filenames := c.ComputeFilenames(chapter, options.Format)
 
@@ -130,7 +126,12 @@ func (c *Client[M, V, C, P]) DownloadChapter(
 
 	if chapterExists {
 		c.options.Log(fmt.Sprintf("Chapter %q already exists, removing", chapter.Info().Title))
-		if options.Format == FormatImages {
+		isDir, err := afero.IsDir(c.options.FS, chapterPath)
+		if err != nil {
+			return "", err
+		}
+
+		if isDir {
 			err = c.options.FS.RemoveAll(chapterPath)
 		} else {
 			err = c.options.FS.Remove(chapterPath)
@@ -141,31 +142,8 @@ func (c *Client[M, V, C, P]) DownloadChapter(
 		}
 	}
 
-	if err != nil {
-		return "", err
-	}
-
 	if options.WriteSeriesJson {
-		var seriesJson SeriesJson
-
-		seriesJson, ok := chapter.Volume().Manga().SeriesJson()
-		if !ok {
-			manga, err := c.options.Anilist.MakeMangaWithAnilist(ctx, chapter.Volume().Manga())
-			if err != nil {
-				return "", err
-			}
-
-			seriesJson = manga.SeriesJson()
-		}
-
-		seriesJsonPath := filepath.Join(dir, seriesJsonFilename)
-
-		marshalled, err := json.Marshal(seriesJson)
-		if err != nil {
-			return "", err
-		}
-
-		err = afero.WriteFile(c.options.FS, seriesJsonPath, marshalled, 0644)
+		err := c.writeSeriesJson(ctx, chapter, dir)
 		if err != nil {
 			return "", err
 		}
@@ -197,12 +175,51 @@ func (c *Client[M, V, C, P]) DownloadChapter(
 	return chapterPath, nil
 }
 
+func (c Client[M, V, C, P]) writeSeriesJson(ctx context.Context, chapter C, dir string) error {
+	seriesJsonPath := filepath.Join(dir, seriesJsonFilename)
+
+	exists, err := afero.Exists(c.options.FS, seriesJsonPath)
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		return nil
+	}
+
+	var seriesJson SeriesJson
+
+	seriesJson, ok := chapter.Volume().Manga().SeriesJson()
+	if !ok {
+		manga, ok, err := c.options.Anilist.MakeMangaWithAnilist(ctx, chapter.Volume().Manga())
+		if err != nil {
+			return err
+		}
+
+		if ok {
+			seriesJson = manga.SeriesJson()
+		}
+	}
+
+	marshalled, err := json.Marshal(seriesJson)
+	if err != nil {
+		return err
+	}
+
+	err = afero.WriteFile(c.options.FS, seriesJsonPath, marshalled, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // downloadChapter is a helper function for DownloadChapter
-func (c *Client[M, V, C, P]) downloadChapter(
+func (c Client[M, V, C, P]) downloadChapter(
 	ctx context.Context,
 	chapter C,
 	path string,
-	options *DownloadOptions,
+	options DownloadOptions,
 ) error {
 	pages, err := c.provider.ChapterPages(ctx, c.options.Log, chapter)
 	if err != nil {
@@ -221,14 +238,16 @@ func (c *Client[M, V, C, P]) downloadChapter(
 		var comicInfo ComicInfoXml
 		if options.WriteComicInfoXml {
 			var ok bool
-			comicInfo, ok = chapter.ComicInfoXml()
+			comicInfo, ok = chapter.ComicInfoXml(options.ComicInfoOptions)
 			if !ok {
-				chapter, err := c.options.Anilist.MakeChapterWithAnilist(ctx, chapter)
+				chapter, ok, err := c.options.Anilist.MakeChapterWithAnilist(ctx, chapter)
 				if err != nil {
 					return err
 				}
 
-				comicInfo = chapter.ComicInfoXml(options.ComicInfoOptions)
+				if ok {
+					comicInfo = chapter.ComicInfoXml(options.ComicInfoOptions)
+				}
 			}
 
 			// just in case
@@ -252,7 +271,7 @@ func (c *Client[M, V, C, P]) downloadChapter(
 // by calling DownloadPage for each page in a separate goroutines.
 // If any of the pages fails to download it will stop downloading other pages
 // and return error immediately
-func (c *Client[M, V, C, P]) DownloadPagesInBatch(
+func (c Client[M, V, C, P]) DownloadPagesInBatch(
 	ctx context.Context,
 	pages []P,
 ) ([]*PageWithImage[P], error) {
@@ -287,7 +306,7 @@ func (c *Client[M, V, C, P]) DownloadPagesInBatch(
 }
 
 // SavePDF saves pages in FormatPDF
-func (c *Client[M, V, C, P]) SavePDF(
+func (c Client[M, V, C, P]) SavePDF(
 	pages []*PageWithImage[P],
 	path string,
 ) error {
@@ -311,7 +330,9 @@ func (c *Client[M, V, C, P]) SavePDF(
 }
 
 // SaveCBZ saves pages in FormatCBZ
-func (c *Client[M, V, C, P]) SaveCBZ(
+//
+// If comicInfoXml is nil it won't be written
+func (c Client[M, V, C, P]) SaveCBZ(
 	pages []*PageWithImage[P],
 	path string,
 	comicInfoXml *ComicInfoXml,
@@ -377,7 +398,7 @@ func (c *Client[M, V, C, P]) SaveCBZ(
 }
 
 // SaveImages saves pages in FormatImages
-func (c *Client[M, V, C, P]) SaveImages(
+func (c Client[M, V, C, P]) SaveImages(
 	pages []*PageWithImage[P],
 	path string,
 ) error {
@@ -413,7 +434,7 @@ func (c *Client[M, V, C, P]) SaveImages(
 }
 
 // DownloadPage downloads a page contents (image)
-func (c *Client[M, V, C, P]) DownloadPage(ctx context.Context, page P) (*PageWithImage[P], error) {
+func (c Client[M, V, C, P]) DownloadPage(ctx context.Context, page P) (*PageWithImage[P], error) {
 	reader, err := c.provider.GetPageImage(ctx, c.options.Log, page)
 	if err != nil {
 		return nil, err
@@ -430,10 +451,9 @@ func (c *Client[M, V, C, P]) DownloadPage(ctx context.Context, page P) (*PageWit
 // E.g. `xdg-open` for Linux.
 //
 // Note: works only for afero.OsFs
-func (c *Client[M, V, C, P]) ReadChapter(ctx context.Context, chapter C, options *ReadOptions) error {
+func (c Client[M, V, C, P]) ReadChapter(ctx context.Context, chapter C, options ReadOptions) error {
 	c.options.Log(fmt.Sprintf("Reading chapter %q as %s", chapter.Info().Title, options.Format))
 
-	var chapterPath string
 	if options.MangasLibraryPath != "" {
 		filenames := c.ComputeFilenames(chapter, options.Format)
 
@@ -445,35 +465,38 @@ func (c *Client[M, V, C, P]) ReadChapter(ctx context.Context, chapter C, options
 
 		if exists {
 			c.options.Log(fmt.Sprintf("Chapter %q is already downloaded", chapter.Info().Title))
-			chapterPath = path
+			return c.readChapter(path)
 		}
 	}
 
-	if chapterPath == "" {
-		c.options.Log(fmt.Sprintf("Creating temp dir"))
-		tempDir, err := afero.TempDir(c.options.FS, "", "libmangal")
-		if err != nil {
-			return err
-		}
-
-		chapterPath, err = c.DownloadChapter(
-			ctx,
-			chapter,
-			tempDir,
-			&DownloadOptions{Format: options.Format},
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	c.options.Log(fmt.Sprintf("Opening chapter %q with default app", chapter.Info().Title))
-	err := open.Run(chapterPath)
+	c.options.Log(fmt.Sprintf("Creating temp dir"))
+	tempDir, err := afero.TempDir(c.options.FS, "", "libmangal")
 	if err != nil {
 		return err
 	}
 
+	path, err := c.DownloadChapter(
+		ctx,
+		chapter,
+		tempDir,
+		DownloadOptions{Format: options.Format},
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return c.readChapter(path)
+}
+
+func (c Client[M, V, C, P]) readChapter(path string) error {
+	c.options.Log("Opening chapter with the default app")
 	// TODO: history?
+
+	err := open.Run(path)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -484,7 +507,7 @@ type Filenames struct {
 
 // ComputeFilenames will apply name templates for chapter and manga
 // and return resulting strings.
-func (c *Client[M, V, C, P]) ComputeFilenames(
+func (c Client[M, V, C, P]) ComputeFilenames(
 	chapter Chapter,
 	format Format,
 ) (filenames Filenames) {

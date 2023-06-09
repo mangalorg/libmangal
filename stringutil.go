@@ -5,10 +5,6 @@ import (
 	"strings"
 )
 
-func unifyString(s string) string {
-	return strings.ToLower(strings.TrimSpace(s))
-}
-
 func sanitizePath(path string) string {
 	for _, ch := range invalidPathChars {
 		path = strings.ReplaceAll(path, string(ch), "_")

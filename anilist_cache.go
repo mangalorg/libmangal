@@ -32,14 +32,14 @@ func (a *Anilist) cacheSetTitle(
 
 func (a *Anilist) cacheStatusId(
 	id int,
-) (found bool, manga *AnilistManga, err error) {
+) (found bool, manga AnilistManga, err error) {
 	found, err = a.options.IDToMangaStore.Get(strconv.Itoa(id), &manga)
 	return
 }
 
 func (a *Anilist) cacheSetId(
 	id int,
-	manga *AnilistManga,
+	manga AnilistManga,
 ) error {
 	return a.options.IDToMangaStore.Set(strconv.Itoa(id), manga)
 }

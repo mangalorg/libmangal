@@ -83,7 +83,7 @@ type Chapter interface {
 	// ComicInfoXml will be used to write ComicInfo.xml file.
 	// If ok is false then mangal will try to search on Anilist for the
 	// relevant manga.
-	ComicInfoXml() (comicInfo ComicInfoXml, ok bool)
+	ComicInfoXml(options ComicInfoXmlOptions) (comicInfo ComicInfoXml, ok bool)
 }
 
 // Page is what Chapter consists of.

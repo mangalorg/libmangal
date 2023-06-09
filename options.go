@@ -2,10 +2,8 @@ package libmangal
 
 import (
 	"fmt"
-	levenshtein "github.com/ka-weihe/fast-levenshtein"
 	"github.com/philippgille/gokv"
 	"github.com/philippgille/gokv/syncmap"
-	"github.com/samber/lo"
 	"github.com/spf13/afero"
 	"net/http"
 )
@@ -32,12 +30,12 @@ type DownloadOptions struct {
 	WriteComicInfoXml bool
 
 	// ComicInfoOptions options to use for ComicInfo.xml when WriteComicInfoXml is true
-	ComicInfoOptions *ComicInfoOptions
+	ComicInfoOptions ComicInfoXmlOptions
 }
 
 // DefaultDownloadOptions constructs default DownloadOptions
-func DefaultDownloadOptions() *DownloadOptions {
-	return &DownloadOptions{
+func DefaultDownloadOptions() DownloadOptions {
+	return DownloadOptions{
 		Format:             FormatPDF,
 		CreateMangaDir:     true,
 		CreateVolumeDir:    false,
@@ -61,8 +59,8 @@ type ReadOptions struct {
 }
 
 // DefaultReadOptions constructs default ReadOptions
-func DefaultReadOptions() *ReadOptions {
-	return &ReadOptions{
+func DefaultReadOptions() ReadOptions {
+	return ReadOptions{
 		Format:            FormatPDF,
 		MangasLibraryPath: "",
 	}
@@ -75,35 +73,29 @@ type AnilistOptions struct {
 
 	// QueryToIDsStore maps query to ids.
 	// single query to multiple ids.
+	//
 	// ["berserk" => [7, 42, 69], "death note" => [887, 3, 134]]
 	QueryToIDsStore gokv.Store
 
 	// TitleToIDStore maps title to id.
 	// single title to single id.
+	//
 	// ["berserk" => 7, "death note" => 3]
 	TitleToIDStore gokv.Store
 
 	// IDToMangaStore maps id to manga.
 	// single id to single manga.
+	//
 	// [7 => "{title: ..., image: ..., ...}"]
 	IDToMangaStore gokv.Store
-
-	// GetClosestManga is the function that will be used
-	// to get the most similar manga from Anilist
-	// based on the passed title.
-	// If there's no such manga ok will be false
-	GetClosestManga func(
-		title string,
-		anilistMangas []*AnilistManga,
-	) (closest *AnilistManga, ok bool)
 
 	// Log logs progress
 	Log LogFunc
 }
 
 // DefaultAnilistOptions constructs default AnilistOptions
-func DefaultAnilistOptions() *AnilistOptions {
-	return &AnilistOptions{
+func DefaultAnilistOptions() AnilistOptions {
+	return AnilistOptions{
 		Log: func(string) {},
 
 		HTTPClient: &http.Client{},
@@ -111,19 +103,6 @@ func DefaultAnilistOptions() *AnilistOptions {
 		QueryToIDsStore: syncmap.NewStore(syncmap.DefaultOptions),
 		TitleToIDStore:  syncmap.NewStore(syncmap.DefaultOptions),
 		IDToMangaStore:  syncmap.NewStore(syncmap.DefaultOptions),
-
-		GetClosestManga: func(title string, anilistMangas []*AnilistManga) (*AnilistManga, bool) {
-			title = unifyString(title)
-			return lo.MinBy(anilistMangas, func(a, b *AnilistManga) bool {
-				return levenshtein.Distance(
-					title,
-					unifyString(a.String()),
-				) < levenshtein.Distance(
-					title,
-					unifyString(b.String()),
-				)
-			}), true
-		},
 	}
 }
 
@@ -162,12 +141,12 @@ type ClientOptions struct {
 	Log LogFunc
 
 	// Anilist is the Anilist client to use
-	Anilist *Anilist
+	Anilist Anilist
 }
 
 // DefaultClientOptions constructs default ClientOptions
-func DefaultClientOptions() *ClientOptions {
-	return &ClientOptions{
+func DefaultClientOptions() ClientOptions {
+	return ClientOptions{
 		HTTPClient: &http.Client{},
 		FS:         afero.NewOsFs(),
 		ChapterNameTemplate: func(_ string, chapter Chapter) string {
@@ -186,23 +165,18 @@ func DefaultClientOptions() *ClientOptions {
 	}
 }
 
-// ComicInfoOptions tweaks ComicInfoXml generation
-type ComicInfoOptions struct {
+// ComicInfoXmlOptions tweaks ComicInfoXml generation
+type ComicInfoXmlOptions struct {
 	// AddDate whether to add series release date or not
 	AddDate bool
 
 	// AlternativeDate use other date
 	AlternativeDate *Date
-
-	// TagRelevanceThreshold is the minimum relevance of a tag
-	// to be added to ComicInfoXml.xml file. From 0 to 100
-	TagRelevanceThreshold int
 }
 
-// DefaultComicInfoOptions constructs default ComicInfoOptions
-func DefaultComicInfoOptions() *ComicInfoOptions {
-	return &ComicInfoOptions{
-		AddDate:               true,
-		TagRelevanceThreshold: 60,
+// DefaultComicInfoOptions constructs default ComicInfoXmlOptions
+func DefaultComicInfoOptions() ComicInfoXmlOptions {
+	return ComicInfoXmlOptions{
+		AddDate: true,
 	}
 }
