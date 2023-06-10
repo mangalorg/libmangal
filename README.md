@@ -46,8 +46,8 @@ Such as a CLI, a web app, a mobile app, gRPC server, etc. *Anything!*
 go get github.com/mangalorg/libmangal
 ```
 
-## Examples
+## Providers
 
-Soon...
+- [luaprovider](https://github.com/mangalorg/luaprovider) - Generic provider based on Lua scripts
 
 [libmangal logo]: https://github.com/mangalorg/libmangal/assets/62389790/1438a6c4-9651-4071-8e46-d28b32a57250
