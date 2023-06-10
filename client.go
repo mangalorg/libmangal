@@ -23,17 +23,17 @@ func NewClient[M Manga, V Volume, C Chapter, P Page](
 	ctx context.Context,
 	loader ProviderLoader[M, V, C, P],
 	options ClientOptions,
-) (*Client[M, V, C, P], error) {
+) (Client[M, V, C, P], error) {
 	if err := loader.Info().Validate(); err != nil {
-		return nil, err
+		return Client[M, V, C, P]{}, err
 	}
 
 	provider, err := loader.Load(ctx)
 	if err != nil {
-		return nil, err
+		return Client[M, V, C, P]{}, err
 	}
 
-	return &Client[M, V, C, P]{
+	return Client[M, V, C, P]{
 		provider: provider,
 		options:  options,
 	}, nil
@@ -95,7 +95,7 @@ func (c Client[M, V, C, P]) DownloadChapter(
 		dir = filepath.Join(dir, filenames.Volume)
 	}
 
-	err := c.options.FS.MkdirAll(dir, modeDefault)
+	err := c.options.FS.MkdirAll(dir, modeDir)
 	if err != nil {
 		return "", err
 	}
@@ -128,17 +128,7 @@ func (c Client[M, V, C, P]) DownloadChapter(
 
 	if chapterExists {
 		c.options.Log(fmt.Sprintf("Chapter %q already exists, removing", chapter.Info().Title))
-		isDir, err := afero.IsDir(c.options.FS, chapterPath)
-		if err != nil {
-			return "", err
-		}
-
-		if isDir {
-			err = c.options.FS.RemoveAll(chapterPath)
-		} else {
-			err = c.options.FS.Remove(chapterPath)
-		}
-
+		err := c.removeChapter(chapterPath)
 		if err != nil {
 			return "", err
 		}
@@ -171,8 +161,21 @@ func (c Client[M, V, C, P]) DownloadChapter(
 	return chapterPath, nil
 }
 
+func (c Client[M, V, C, P]) removeChapter(chapterPath string) error {
+	isDir, err := afero.IsDir(c.options.FS, chapterPath)
+	if err != nil {
+		return err
+	}
+
+	if isDir {
+		return c.options.FS.RemoveAll(chapterPath)
+	}
+
+	return c.options.FS.Remove(chapterPath)
+}
+
 func (c Client[M, V, C, P]) downloadCover(ctx context.Context, chapter C, dir string) error {
-	coverPath := filepath.Join(dir, "cover.jpg")
+	coverPath := filepath.Join(dir, coverJpgFilename)
 
 	exists, err := afero.Exists(c.options.FS, coverPath)
 	if err != nil {
@@ -218,7 +221,7 @@ func (c Client[M, V, C, P]) downloadCover(ctx context.Context, chapter C, dir st
 		return err
 	}
 
-	return afero.WriteFile(c.options.FS, coverPath, cover, modeDefault)
+	return afero.WriteFile(c.options.FS, coverPath, cover, modeFile)
 }
 
 func (c Client[M, V, C, P]) getCoverURL(ctx context.Context, chapter C) (string, bool, error) {
@@ -281,7 +284,7 @@ func (c Client[M, V, C, P]) writeSeriesJson(ctx context.Context, chapter C, dir 
 		return err
 	}
 
-	err = afero.WriteFile(c.options.FS, seriesJsonPath, marshalled, modeDefault)
+	err = afero.WriteFile(c.options.FS, seriesJsonPath, marshalled, modeFile)
 	if err != nil {
 		return err
 	}
@@ -310,24 +313,9 @@ func (c Client[M, V, C, P]) downloadChapter(
 	case FormatPDF:
 		err = c.SavePDF(downloadedPages, path)
 	case FormatCBZ:
-		var comicInfo ComicInfoXml
-		if options.WriteComicInfoXml {
-			var ok bool
-			comicInfo, ok = chapter.ComicInfoXml(options.ComicInfoOptions)
-			if !ok {
-				chapter, ok, err := c.options.Anilist.MakeChapterWithAnilist(ctx, chapter)
-				if err != nil {
-					return err
-				}
-
-				if ok {
-					comicInfo = chapter.ComicInfoXml(options.ComicInfoOptions)
-				}
-			}
-
-			// just in case
-			comicInfo.XmlnsXsd = "http://www.w3.org/2001/XMLSchema"
-			comicInfo.XmlnsXsi = "http://www.w3.org/2001/XMLSchema-instance"
+		comicInfo, err := c.generateComicInfo(ctx, chapter, options.ComicInfoOptions)
+		if err != nil {
+			return err
 		}
 
 		err = c.SaveCBZ(downloadedPages, path, &comicInfo)
@@ -342,6 +330,35 @@ func (c Client[M, V, C, P]) downloadChapter(
 	return nil
 }
 
+func (c Client[M, V, C, P]) generateComicInfo(
+	ctx context.Context,
+	chapter C,
+	options ComicInfoXmlOptions,
+) (ComicInfoXml, error) {
+	comicInfo, ok := chapter.ComicInfoXml()
+	if ok {
+		comicInfo.adjust(options)
+		return comicInfo, nil
+	}
+
+	chapterWithAnilist, ok, err := c.options.Anilist.MakeChapterWithAnilist(ctx, chapter)
+	if err != nil {
+		comicInfo := ComicInfoXml{}
+		comicInfo.adjust(options)
+		return comicInfo, err
+	}
+
+	if !ok {
+		comicInfo := ComicInfoXml{}
+		comicInfo.adjust(options)
+		return comicInfo, nil
+	}
+
+	comicInfo = chapterWithAnilist.ComicInfoXml()
+	comicInfo.adjust(options)
+	return comicInfo, nil
+}
+
 // DownloadPagesInBatch downloads multiple pages in batch
 // by calling DownloadPage for each page in a separate goroutines.
 // If any of the pages fails to download it will stop downloading other pages
@@ -349,12 +366,12 @@ func (c Client[M, V, C, P]) downloadChapter(
 func (c Client[M, V, C, P]) DownloadPagesInBatch(
 	ctx context.Context,
 	pages []P,
-) ([]*PageWithImage[P], error) {
+) ([]PageWithImage[P], error) {
 	c.options.Log(fmt.Sprintf("Downloading %d pages", len(pages)))
 
 	g, _ := errgroup.WithContext(ctx)
 
-	downloadedPages := make([]*PageWithImage[P], len(pages))
+	downloadedPages := make([]PageWithImage[P], len(pages))
 
 	for i, page := range pages {
 		i, page := i, page
@@ -382,7 +399,7 @@ func (c Client[M, V, C, P]) DownloadPagesInBatch(
 
 // SavePDF saves pages in FormatPDF
 func (c Client[M, V, C, P]) SavePDF(
-	pages []*PageWithImage[P],
+	pages []PageWithImage[P],
 	path string,
 ) error {
 	c.options.Log(fmt.Sprintf("Saving %d pages as PDF", len(pages)))
@@ -408,7 +425,7 @@ func (c Client[M, V, C, P]) SavePDF(
 //
 // If comicInfoXml is nil it won't be written
 func (c Client[M, V, C, P]) SaveCBZ(
-	pages []*PageWithImage[P],
+	pages []PageWithImage[P],
 	path string,
 	comicInfoXml *ComicInfoXml,
 ) error {
@@ -474,11 +491,11 @@ func (c Client[M, V, C, P]) SaveCBZ(
 
 // SaveImages saves pages in FormatImages
 func (c Client[M, V, C, P]) SaveImages(
-	pages []*PageWithImage[P],
+	pages []PageWithImage[P],
 	path string,
 ) error {
 	c.options.Log(fmt.Sprintf("Saving %d pages as images dir", len(pages)))
-	err := c.options.FS.MkdirAll(path, modeDefault)
+	err := c.options.FS.MkdirAll(path, modeDir)
 	if err != nil {
 		return err
 	}
@@ -509,13 +526,13 @@ func (c Client[M, V, C, P]) SaveImages(
 }
 
 // DownloadPage downloads a page contents (image)
-func (c Client[M, V, C, P]) DownloadPage(ctx context.Context, page P) (*PageWithImage[P], error) {
+func (c Client[M, V, C, P]) DownloadPage(ctx context.Context, page P) (PageWithImage[P], error) {
 	reader, err := c.provider.GetPageImage(ctx, c.options.Log, page)
 	if err != nil {
-		return nil, err
+		return PageWithImage[P]{}, err
 	}
 
-	return &PageWithImage[P]{
+	return PageWithImage[P]{
 		Page:  page,
 		Image: reader,
 	}, nil
@@ -583,7 +600,7 @@ type Filenames struct {
 // ComputeFilenames will apply name templates for chapter and manga
 // and return resulting strings.
 func (c Client[M, V, C, P]) ComputeFilenames(
-	chapter Chapter,
+	chapter C,
 	format Format,
 ) (filenames Filenames) {
 	volume := chapter.Volume()

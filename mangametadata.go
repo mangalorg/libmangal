@@ -9,6 +9,7 @@ import (
 const (
 	comicInfoXmlFilename = "ComicInfo.xml"
 	seriesJsonFilename   = "series.json"
+	coverJpgFilename     = "cover.jpg"
 )
 
 // ComicInfoXml contains metadata information about a comic book.
@@ -38,6 +39,22 @@ type ComicInfoXml struct {
 	Tags       string  `xml:"Tags,omitempty"`
 	Notes      string  `xml:"Notes,omitempty"`
 	Manga      string  `xml:"Manga,omitempty"`
+}
+
+func (c *ComicInfoXml) adjust(options ComicInfoXmlOptions) {
+	c.XmlnsXsd = "http://www.w3.org/2001/XMLSchema"
+	c.XmlnsXsi = "http://www.w3.org/2001/XMLSchema-instance"
+
+	if !options.AddDate {
+		c.Year = 0
+		c.Month = 0
+		c.Day = 0
+	} else if options.AlternativeDate != nil {
+		date := options.AlternativeDate
+		c.Year = date.Year
+		c.Month = date.Month
+		c.Day = date.Day
+	}
 }
 
 // SeriesJson is similar to ComicInfoXml but designed for
@@ -110,20 +127,13 @@ type ChapterOfMangaWithAnilist struct {
 	MangaWithAnilist MangaWithAnilist
 }
 
-func (c *ChapterOfMangaWithAnilist) ComicInfoXml(options ComicInfoXmlOptions) ComicInfoXml {
+func (c *ChapterOfMangaWithAnilist) ComicInfoXml() ComicInfoXml {
 	var characters = make([]string, len(c.MangaWithAnilist.Anilist.Characters.Nodes))
 	for i, node := range c.MangaWithAnilist.Anilist.Characters.Nodes {
 		characters[i] = node.Name.Full
 	}
 
-	var date Date
-	if options.AddDate {
-		if options.AlternativeDate != nil {
-			date = *options.AlternativeDate
-		} else {
-			date = c.MangaWithAnilist.Anilist.StartDate
-		}
-	}
+	date := c.MangaWithAnilist.Anilist.StartDate
 
 	var (
 		writers,
