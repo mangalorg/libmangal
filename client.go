@@ -149,6 +149,13 @@ func (c Client[M, V, C, P]) DownloadChapter(
 		}
 	}
 
+	if options.DownloadMangaBanner {
+		err := c.downloadBanner(ctx, chapter, dir)
+		if err != nil && options.Strict {
+			return "", err
+		}
+	}
+
 	// move to the original location
 	// only after everything else was successful
 	err = c.options.FS.Rename(
@@ -179,7 +186,7 @@ func (c Client[M, V, C, P]) removeChapter(chapterPath string) error {
 	return c.options.FS.Remove(chapterPath)
 }
 
-// downloadCover will download if it doesn't exist
+// downloadCover will download cover if it doesn't exist
 func (c Client[M, V, C, P]) downloadCover(ctx context.Context, chapter C, dir string) error {
 	c.options.Log("Downloading cover")
 
@@ -234,6 +241,61 @@ func (c Client[M, V, C, P]) downloadCover(ctx context.Context, chapter C, dir st
 	return afero.WriteFile(c.options.FS, coverPath, cover, modeFile)
 }
 
+// downloadBanner will download banner if it doesn't exist
+func (c Client[M, V, C, P]) downloadBanner(ctx context.Context, chapter C, dir string) error {
+	c.options.Log("Downloading banner")
+
+	bannerPath := filepath.Join(dir, bannerJpgFilename)
+
+	exists, err := afero.Exists(c.options.FS, bannerPath)
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		c.options.Log("Banner is already downloaded, skipping")
+		return nil
+	}
+
+	coverURL, ok, err := c.getBannerURL(ctx, chapter)
+	if err != nil {
+		return err
+	}
+	c.options.Log(coverURL)
+
+	if !ok {
+		return errors.New("cover url not found")
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, coverURL, nil)
+	if err != nil {
+		return err
+	}
+
+	request.Header.Set("Referer", chapter.Volume().Manga().Info().URL)
+	request.Header.Set("User-Agent", UserAgent)
+	request.Header.Set("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
+
+	response, err := c.options.HTTPClient.Do(request)
+	if err != nil {
+		return err
+	}
+
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected http status: %s", response.Status)
+	}
+
+	cover, err := readResponseBody(response.ContentLength, response.Body)
+	if err != nil {
+		return err
+	}
+
+	c.options.Log("Banner downloaded")
+	return afero.WriteFile(c.options.FS, bannerPath, cover, modeFile)
+}
+
 func (c Client[M, V, C, P]) getCoverURL(ctx context.Context, chapter C) (string, bool, error) {
 	manga := chapter.Volume().Manga()
 
@@ -258,6 +320,31 @@ func (c Client[M, V, C, P]) getCoverURL(ctx context.Context, chapter C) (string,
 		if coverURL != "" {
 			return coverURL, true, nil
 		}
+	}
+
+	return "", false, nil
+}
+
+func (c Client[M, V, C, P]) getBannerURL(ctx context.Context, chapter C) (string, bool, error) {
+	manga := chapter.Volume().Manga()
+
+	bannerURL := manga.Info().Banner
+	if bannerURL != "" {
+		return bannerURL, true, nil
+	}
+
+	mangaWithAnilist, ok, err := c.options.Anilist.MakeMangaWithAnilist(ctx, manga)
+	if err != nil {
+		return "", false, err
+	}
+
+	if !ok {
+		return "", false, nil
+	}
+
+	bannerURL = mangaWithAnilist.Anilist.BannerImage
+	if bannerURL != "" {
+		return bannerURL, true, nil
 	}
 
 	return "", false, nil

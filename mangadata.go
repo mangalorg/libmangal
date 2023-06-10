@@ -20,6 +20,9 @@ type MangaInfo struct {
 
 	// Cover is the cover image url.
 	Cover string
+
+	// Banner is the banner image url.
+	Banner string
 }
 
 type Manga interface {

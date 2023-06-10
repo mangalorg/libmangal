@@ -33,6 +33,9 @@ type DownloadOptions struct {
 	// DownloadMangaCover or not. Will not download cover again if its already downloaded.
 	DownloadMangaCover bool
 
+	// DownloadMangaBanner or not. Will not download banner again if its already downloaded.
+	DownloadMangaBanner bool
+
 	// WriteSeriesJson write metadata series.json file in the manga directory
 	WriteSeriesJson bool
 
