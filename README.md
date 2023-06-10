@@ -1,6 +1,7 @@
-# libmangal β
+# ![libmangal logo] libmangal β
 
 > **Warning**
+> 
 > This is a beta software. The API is not stable and may change at any time.
 
 This is the *engine* for downloading, managing, tagging, reading manga
@@ -48,3 +49,5 @@ go get github.com/mangalorg/libmangal
 ## Examples
 
 Soon...
+
+[libmangal logo]: https://github.com/mangalorg/libmangal/assets/62389790/1438a6c4-9651-4071-8e46-d28b32a57250
