@@ -19,6 +19,9 @@ type ProviderInfo struct {
 
 	// Description of the provider. May be empty.
 	Description string
+
+	// Website of the provider. May be empty.
+	Website string
 }
 
 // Validate checks if the ProviderInfo is valid.
