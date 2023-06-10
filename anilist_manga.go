@@ -10,6 +10,7 @@ type AnilistManga struct {
 		// Native is the native title of the manga. (Usually in kanji)
 		Native string `json:"native" jsonschema:"description=Native title of the manga. Usually in kanji."`
 	} `json:"title"`
+	AverageScore int `json:"averageScore" jsonschema:"description=Average score of the manga on Anilist."`
 	// ID is the id of the manga on Anilist.
 	ID int `json:"id" jsonschema:"description=ID of the manga on AnilistSearch."`
 	// Description is the description of the manga in html format.

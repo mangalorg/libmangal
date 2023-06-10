@@ -10,6 +10,7 @@ title {
 	native
 }
 description(asHtml: false)
+averageScore
 tags {
 	name
 	description

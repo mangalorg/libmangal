@@ -1,9 +1,5 @@
 package libmangal
 
-import (
-	"io"
-)
-
 type MangaInfo struct {
 	// Title of the manga
 	Title string
@@ -104,5 +100,5 @@ type Page interface {
 // PageWithImage is a Page with downloaded image
 type PageWithImage[P Page] struct {
 	Page  P
-	Image io.Reader
+	Image []byte
 }

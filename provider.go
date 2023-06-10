@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/mod/semver"
-	"io"
 )
 
 // ProviderInfo is the passport of the provider
@@ -94,7 +93,7 @@ type Provider[M Manga, V Volume, C Chapter, P Page] interface {
 		ctx context.Context,
 		log LogFunc,
 		page P,
-	) (io.Reader, error)
+	) ([]byte, error)
 }
 
 // LogFunc is the function used for tracking progress of various operations

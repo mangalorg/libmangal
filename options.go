@@ -13,9 +13,19 @@ type DownloadOptions struct {
 	// Format in which a chapter must be downloaded
 	Format Format
 
+	// CreateMangaDir will create manga directory
 	CreateMangaDir bool
 
+	// CreateVolumeDir will create volume directory.
+	//
+	// If CreateMangaDir is also true, volume directory
+	// will be created under it.
 	CreateVolumeDir bool
+
+	// Strict means that that if during metadata creation
+	// error occurs downloader will return it immediately and chapter
+	// won't be downloaded
+	Strict bool
 
 	// SkipIfExists will skip downloading chapter if its already downloaded (exists)
 	SkipIfExists bool
@@ -40,6 +50,7 @@ func DefaultDownloadOptions() DownloadOptions {
 		Format:             FormatPDF,
 		CreateMangaDir:     true,
 		CreateVolumeDir:    false,
+		Strict:             true,
 		SkipIfExists:       true,
 		DownloadMangaCover: false,
 		WriteSeriesJson:    false,
