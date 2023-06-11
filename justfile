@@ -1,19 +1,12 @@
 #!/usr/bin/env just --justfile
 
 go-mod := `go list`
-flags := '-trimpath -ldflags="-s -w"'
 
 test:
     go test ./...
 
 generate:
 	go generate ./...
-
-install cmd:
-	go install ./cmd/{{cmd}}
-
-example example:
-    go run ./examples/{{example}}
 
 update:
 	go get -u
