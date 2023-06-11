@@ -291,7 +291,7 @@ func (c Client[M, V, C, P]) generateComicInfo(
 	return chapterWithAnilist.ComicInfoXml(), nil
 }
 
-func (c Client[M, V, C, P]) readChapter(path string) error {
+func (c Client[M, V, C, P]) readChapter(path string, incognito bool) error {
 	c.options.Log("Opening chapter with the default app")
 	// TODO: history? anilist sync?
 

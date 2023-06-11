@@ -74,10 +74,11 @@ func (c Client[M, V, C, P]) Info() ProviderInfo {
 
 // DownloadChapter downloads and saves chapter to the specified
 // directory in the given format.
+//
+// It will return resulting chapter path joined with DownloadOptions.Directory
 func (c Client[M, V, C, P]) DownloadChapter(
 	ctx context.Context,
 	chapter C,
-	dir string,
 	options DownloadOptions,
 ) (string, error) {
 	c.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter.Info().Title, options.Format.String()))
@@ -85,19 +86,19 @@ func (c Client[M, V, C, P]) DownloadChapter(
 	filenames := c.ComputeFilenames(chapter, options.Format)
 
 	if options.CreateMangaDir {
-		dir = filepath.Join(dir, filenames.Manga)
+		options.Directory = filepath.Join(options.Directory, filenames.Manga)
 	}
 
 	if options.CreateVolumeDir {
-		dir = filepath.Join(dir, filenames.Volume)
+		options.Directory = filepath.Join(options.Directory, filenames.Volume)
 	}
 
-	err := c.options.FS.MkdirAll(dir, modeDir)
+	err := c.options.FS.MkdirAll(options.Directory, modeDir)
 	if err != nil {
 		return "", err
 	}
 
-	chapterPath := filepath.Join(dir, filenames.Chapter)
+	chapterPath := filepath.Join(options.Directory, filenames.Chapter)
 
 	chapterExists, err := afero.Exists(c.options.FS, chapterPath)
 	if err != nil {
@@ -107,7 +108,11 @@ func (c Client[M, V, C, P]) DownloadChapter(
 	if chapterExists && options.SkipIfExists {
 		c.options.Log(fmt.Sprintf("Chapter %q already exists, skipping", chapter.Info().Title))
 
-		return filenames.Chapter, nil
+		if options.ReadAfter {
+			return chapterPath, c.readChapter(chapterPath, options.ReadIncognito)
+		}
+
+		return chapterPath, nil
 	}
 
 	// create a temp dir where chapter will be downloaded.
@@ -132,21 +137,21 @@ func (c Client[M, V, C, P]) DownloadChapter(
 	}
 
 	if options.WriteSeriesJson {
-		err := c.writeSeriesJson(ctx, chapter, dir)
+		err := c.writeSeriesJson(ctx, chapter, options.Directory)
 		if err != nil && options.Strict {
 			return "", err
 		}
 	}
 
 	if options.DownloadMangaCover {
-		err := c.downloadCover(ctx, chapter, dir)
+		err := c.downloadCover(ctx, chapter, options.Directory)
 		if err != nil && options.Strict {
 			return "", err
 		}
 	}
 
 	if options.DownloadMangaBanner {
-		err := c.downloadBanner(ctx, chapter, dir)
+		err := c.downloadBanner(ctx, chapter, options.Directory)
 		if err != nil && options.Strict {
 			return "", err
 		}
@@ -160,6 +165,10 @@ func (c Client[M, V, C, P]) DownloadChapter(
 	)
 	if err != nil {
 		return "", err
+	}
+
+	if options.ReadAfter {
+		return chapterPath, c.readChapter(chapterPath, options.ReadIncognito)
 	}
 
 	return chapterPath, nil
@@ -342,49 +351,6 @@ func (c Client[M, V, C, P]) DownloadPage(ctx context.Context, page P) (PageWithI
 		Page:  page,
 		Image: image,
 	}, nil
-}
-
-// ReadChapter downloads chapter to the temp directory and opens it with the
-// os default app for resulting mimetype.
-// E.g. `xdg-open` for Linux.
-//
-// Note: works only for afero.OsFs
-func (c Client[M, V, C, P]) ReadChapter(ctx context.Context, chapter C, options ReadOptions) error {
-	c.options.Log(fmt.Sprintf("Reading chapter %q as %s", chapter.Info().Title, options.Format))
-
-	if options.MangasLibraryPath != "" {
-		filenames := c.ComputeFilenames(chapter, options.Format)
-
-		path := filepath.Join(options.MangasLibraryPath, filenames.Chapter)
-		exists, err := afero.Exists(c.options.FS, path)
-		if err != nil {
-			return err
-		}
-
-		if exists {
-			c.options.Log(fmt.Sprintf("Chapter %q is already downloaded", chapter.Info().Title))
-			return c.readChapter(path)
-		}
-	}
-
-	c.options.Log(fmt.Sprintf("Creating temp dir"))
-	tempDir, err := afero.TempDir(c.options.FS, "", "libmangal")
-	if err != nil {
-		return err
-	}
-
-	path, err := c.DownloadChapter(
-		ctx,
-		chapter,
-		tempDir,
-		DownloadOptions{Format: options.Format},
-	)
-
-	if err != nil {
-		return err
-	}
-
-	return c.readChapter(path)
 }
 
 type Filenames struct {

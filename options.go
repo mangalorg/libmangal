@@ -13,6 +13,9 @@ type DownloadOptions struct {
 	// Format in which a chapter must be downloaded
 	Format Format
 
+	// Directory is the directory where manga will be downloaded to
+	Directory string
+
 	// CreateMangaDir will create manga directory
 	CreateMangaDir bool
 
@@ -43,6 +46,21 @@ type DownloadOptions struct {
 	// downloading with FormatCBZ
 	WriteComicInfoXml bool
 
+	// ReadAfter will open the chapter for reading after it was downloaded.
+	// It will use os default app for resulting mimetype.
+	//
+	// E.g. `xdg-open` for Linux.
+	//
+	// It will also sync read chapter with your Anilist profile
+	// if it's configured. See also ReadIncognito
+	//
+	// Note, that underlying filesystem must be mapped with OsFs
+	// in order for os to open it.
+	ReadAfter bool
+
+	// ReadIncognito won't sync Anilist reading history if ReadAfter is enabled.
+	ReadIncognito bool
+
 	// ComicInfoOptions options to use for ComicInfo.xml when WriteComicInfoXml is true
 	ComicInfoOptions ComicInfoXmlOptions
 }
@@ -50,34 +68,19 @@ type DownloadOptions struct {
 // DefaultDownloadOptions constructs default DownloadOptions
 func DefaultDownloadOptions() DownloadOptions {
 	return DownloadOptions{
-		Format:             FormatPDF,
-		CreateMangaDir:     true,
-		CreateVolumeDir:    false,
-		Strict:             true,
-		SkipIfExists:       true,
-		DownloadMangaCover: false,
-		WriteSeriesJson:    false,
-		WriteComicInfoXml:  false,
-		ComicInfoOptions:   DefaultComicInfoOptions(),
-	}
-}
-
-// ReadOptions specifies reading options passed to the Client.ReadChapter
-type ReadOptions struct {
-	// Format used for reading
-	Format Format
-
-	// MangasLibraryPath is the path to the directory where mangas are stored.
-	// Will be used to see if the given chapter is already downloaded,
-	// so it will be opened instead
-	MangasLibraryPath string
-}
-
-// DefaultReadOptions constructs default ReadOptions
-func DefaultReadOptions() ReadOptions {
-	return ReadOptions{
-		Format:            FormatPDF,
-		MangasLibraryPath: "",
+		Format:              FormatPDF,
+		Directory:           ".",
+		CreateMangaDir:      true,
+		CreateVolumeDir:     false,
+		Strict:              true,
+		SkipIfExists:        true,
+		DownloadMangaCover:  false,
+		DownloadMangaBanner: false,
+		WriteSeriesJson:     false,
+		WriteComicInfoXml:   false,
+		ReadAfter:           false,
+		ReadIncognito:       false,
+		ComicInfoOptions:    DefaultComicInfoOptions(),
 	}
 }
 
