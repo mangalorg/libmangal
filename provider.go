@@ -12,8 +12,11 @@ type ProviderInfo struct {
 	// Name is the non-empty name of the provider
 	Name string
 
-	// Version is valid semantic version of the provider.
-	// Must start with the "v". E.g. "v0.1.0".
+	// Version is a semantic version of the provider.
+	//
+	// "v" prefix is not permitted.
+	// E.g. "0.1.0" is valid, but "v0.1.0" is not.
+	//
 	// See https://semver.org/
 	Version string
 
@@ -32,7 +35,10 @@ func (p ProviderInfo) Validate() error {
 		return errors.New("name must be non-empty")
 	}
 
-	if !semver.IsValid(p.Version) {
+	// according to the semver specification,
+	// versions should not have "v" prefix. E.g. v0.1.0 isn't a valid semver,
+	// however, for some bizarre reason, Go semver package requires this prefix.
+	if !semver.IsValid("v" + p.Version) {
 		return fmt.Errorf("invalid semver: %s", p.Version)
 	}
 

@@ -136,7 +136,7 @@ func (c ComicInfoXml) wrapper(options ComicInfoXmlOptions) comicInfoXmlWrapper {
 		Translator: strings.Join(c.Translators, ","),
 		Tags:       strings.Join(c.Tags, ","),
 		Notes: c.Notes + fmt.Sprintf(
-			" ~ Downloaded with libmangal %s. github.com/mangalorg/libmangal",
+			" ~ Downloaded with libmangal/%s. github.com/mangalorg/libmangal",
 			Version,
 		),
 		Manga:           "YesAndRightToLeft",
