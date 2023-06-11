@@ -1,4 +1,7 @@
-# ![libmangal logo] libmangal β
+<div align="center">
+  <img width="150px" alt="logo depicting a cartoon octopus" src="https://github.com/mangalorg/libmangal/assets/62389790/c53e105b-94f0-49fe-93c3-b242c9759eef">
+  <h1>libmangal β</h1>
+</div>
 
 > **Warning**
 > 
@@ -49,5 +52,3 @@ go get github.com/mangalorg/libmangal
 ## Providers
 
 - [luaprovider](https://github.com/mangalorg/luaprovider) - Generic provider based on Lua scripts
-
-[libmangal logo]: https://github.com/mangalorg/libmangal/assets/62389790/1438a6c4-9651-4071-8e46-d28b32a57250
