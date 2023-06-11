@@ -26,7 +26,8 @@ type Date struct {
 }
 
 type Anilist struct {
-	options AnilistOptions
+	accessToken string
+	options     AnilistOptions
 }
 
 func NewAnilist(options AnilistOptions) Anilist {
@@ -199,6 +200,13 @@ func sendRequest[Data any](
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
 
+	if anilist.IsAuthorized() {
+		request.Header.Set(
+			"Authorization",
+			fmt.Sprintf("Bearer %s", anilist.accessToken),
+		)
+	}
+
 	response, err := anilist.options.HTTPClient.Do(request)
 	if err != nil {
 		return data, err
@@ -342,6 +350,30 @@ func (a *Anilist) findClosestManga(
 
 func (a *Anilist) BindTitleWithID(title string, anilistMangaId int) error {
 	return a.options.TitleToIDStore.Set(title, anilistMangaId)
+}
+
+func (a *Anilist) SetProgress(ctx context.Context, id, progress int) error {
+	if !a.IsAuthorized() {
+		return errors.New("not authorized")
+	}
+
+	_, err := sendRequest[struct {
+		SaveMediaListEntry struct {
+			ID int `json:"ID"`
+		} `json:"SaveMediaListEntry"`
+	}](
+		ctx,
+		a,
+		anilistRequestBody{
+			Query: anilistMutationSaveProgress,
+			Variables: map[string]any{
+				"id":       id,
+				"progress": progress,
+			},
+		},
+	)
+
+	return err
 }
 
 func (a *Anilist) MakeMangaWithAnilist(

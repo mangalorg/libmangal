@@ -10,7 +10,7 @@ import (
 // ProviderInfo is the passport of the provider
 type ProviderInfo struct {
 	// Name is the non-empty name of the provider
-	Name string
+	Name string `json:"name"`
 
 	// Version is a semantic version of the provider.
 	//
@@ -18,13 +18,13 @@ type ProviderInfo struct {
 	// E.g. "0.1.0" is valid, but "v0.1.0" is not.
 	//
 	// See https://semver.org/
-	Version string
+	Version string `json:"version"`
 
 	// Description of the provider. May be empty.
-	Description string
+	Description string `json:"description"`
 
 	// Website of the provider. May be empty.
-	Website string
+	Website string `json:"website"`
 }
 
 // Validate checks if the ProviderInfo is valid.

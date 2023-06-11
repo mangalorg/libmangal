@@ -107,6 +107,8 @@ type AnilistOptions struct {
 	// [7 => "{title: ..., image: ..., ...}"]
 	IDToMangaStore gokv.Store
 
+	AccessTokenStore gokv.Store
+
 	// Log logs progress
 	Log LogFunc
 }
@@ -159,11 +161,12 @@ type ClientOptions struct {
 	Log LogFunc
 
 	// Anilist is the Anilist client to use
-	Anilist Anilist
+	Anilist *Anilist
 }
 
 // DefaultClientOptions constructs default ClientOptions
 func DefaultClientOptions() ClientOptions {
+	anilist := NewAnilist(DefaultAnilistOptions())
 	return ClientOptions{
 		HTTPClient: &http.Client{},
 		FS:         afero.NewOsFs(),
@@ -179,7 +182,7 @@ func DefaultClientOptions() ClientOptions {
 			return sanitizePath(fmt.Sprintf("Vol. %d", volume.Info().Number))
 		},
 		Log:     func(string) {},
-		Anilist: NewAnilist(DefaultAnilistOptions()),
+		Anilist: &anilist,
 	}
 }
 
