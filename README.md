@@ -1,5 +1,5 @@
 <div align="center">
-  <img width="150px" alt="logo depicting a cartoon octopus" src="https://github.com/mangalorg/libmangal/assets/62389790/c53e105b-94f0-49fe-93c3-b242c9759eef">
+  <img width="150px" alt="logo depicting a cartoon octopus" src="https://github.com/mangalorg/libmangal/assets/62389790/456e7065-0be1-4898-bb22-f9b0f787c2ba">
   <h1>libmangal β</h1>
 </div>
 
