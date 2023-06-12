@@ -15,21 +15,21 @@ import (
 // NewClient creates a new client from ProviderLoader.
 // ClientOptions must be non-nil. Use DefaultClientOptions for defaults.
 // It will validate ProviderLoader.Info and load the provider.
-func NewClient[M Manga, V Volume, C Chapter, P Page](
+func NewClient(
 	ctx context.Context,
-	loader ProviderLoader[M, V, C, P],
+	loader ProviderLoader,
 	options ClientOptions,
-) (Client[M, V, C, P], error) {
+) (Client, error) {
 	if err := loader.Info().Validate(); err != nil {
-		return Client[M, V, C, P]{}, err
+		return Client{}, err
 	}
 
 	provider, err := loader.Load(ctx)
 	if err != nil {
-		return Client[M, V, C, P]{}, err
+		return Client{}, err
 	}
 
-	return Client[M, V, C, P]{
+	return Client{
 		provider: provider,
 		options:  options,
 	}, nil
@@ -37,38 +37,38 @@ func NewClient[M Manga, V Volume, C Chapter, P Page](
 
 // Client is the wrapper around Provider with the extended functionality.
 // It's the core of the libmangal
-type Client[M Manga, V Volume, C Chapter, P Page] struct {
+type Client struct {
 	rawScript []byte
-	provider  Provider[M, V, C, P]
+	provider  Provider
 	options   ClientOptions
 }
 
 // SearchMangas searches for mangas with the given query
-func (c Client[M, V, C, P]) SearchMangas(ctx context.Context, query string) ([]M, error) {
+func (c Client) SearchMangas(ctx context.Context, query string) ([]Manga, error) {
 	return c.provider.SearchMangas(ctx, c.options.Log, query)
 }
 
 // MangaVolumes gets chapters of the given manga
-func (c Client[M, V, C, P]) MangaVolumes(ctx context.Context, manga M) ([]V, error) {
+func (c Client) MangaVolumes(ctx context.Context, manga Manga) ([]Volume, error) {
 	return c.provider.MangaVolumes(ctx, c.options.Log, manga)
 }
 
 // VolumeChapters gets chapters of the given manga
-func (c Client[M, V, C, P]) VolumeChapters(ctx context.Context, volume V) ([]C, error) {
+func (c Client) VolumeChapters(ctx context.Context, volume Volume) ([]Chapter, error) {
 	return c.provider.VolumeChapters(ctx, c.options.Log, volume)
 }
 
 // ChapterPages gets pages of the given chapter
-func (c Client[M, V, C, P]) ChapterPages(ctx context.Context, chapter C) ([]P, error) {
+func (c Client) ChapterPages(ctx context.Context, chapter Chapter) ([]Page, error) {
 	return c.provider.ChapterPages(ctx, c.options.Log, chapter)
 }
 
-func (c Client[M, V, C, P]) String() string {
+func (c Client) String() string {
 	return c.provider.Info().Name
 }
 
 // Info returns info about provider
-func (c Client[M, V, C, P]) Info() ProviderInfo {
+func (c Client) Info() ProviderInfo {
 	return c.provider.Info()
 }
 
@@ -76,12 +76,12 @@ func (c Client[M, V, C, P]) Info() ProviderInfo {
 // directory in the given format.
 //
 // It will return resulting chapter path joined with DownloadOptions.Directory
-func (c Client[M, V, C, P]) DownloadChapter(
+func (c Client) DownloadChapter(
 	ctx context.Context,
-	chapter C,
+	chapter Chapter,
 	options DownloadOptions,
 ) (string, error) {
-	c.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter.Info().Title, options.Format.String()))
+	c.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter, options.Format.String()))
 
 	filenames := c.ComputeFilenames(chapter, options.Format)
 
@@ -106,7 +106,7 @@ func (c Client[M, V, C, P]) DownloadChapter(
 	}
 
 	if chapterExists && options.SkipIfExists {
-		c.options.Log(fmt.Sprintf("Chapter %q already exists, skipping", chapter.Info().Title))
+		c.options.Log(fmt.Sprintf("Chapter %q already exists, skipping", chapter))
 
 		if options.ReadAfter {
 			return chapterPath, c.readChapter(chapterPath, options.ReadIncognito)
@@ -178,15 +178,15 @@ func (c Client[M, V, C, P]) DownloadChapter(
 // by calling DownloadPage for each page in a separate goroutines.
 // If any of the pages fails to download it will stop downloading other pages
 // and return error immediately
-func (c Client[M, V, C, P]) DownloadPagesInBatch(
+func (c Client) DownloadPagesInBatch(
 	ctx context.Context,
-	pages []P,
-) ([]PageWithImage[P], error) {
+	pages []Page,
+) ([]PageWithImage, error) {
 	c.options.Log(fmt.Sprintf("Downloading %d pages", len(pages)))
 
 	g, _ := errgroup.WithContext(ctx)
 
-	downloadedPages := make([]PageWithImage[P], len(pages))
+	downloadedPages := make([]PageWithImage, len(pages))
 
 	for i, page := range pages {
 		// https://github.com/golang/go/wiki/CommonMistakes#using-goroutines-on-loop-iterator-variables
@@ -214,8 +214,8 @@ func (c Client[M, V, C, P]) DownloadPagesInBatch(
 }
 
 // SavePDF saves pages in FormatPDF
-func (c Client[M, V, C, P]) SavePDF(
-	pages []PageWithImage[P],
+func (c Client) SavePDF(
+	pages []PageWithImage,
 	path string,
 ) error {
 	c.options.Log(fmt.Sprintf("Saving %d pages as PDF", len(pages)))
@@ -238,8 +238,8 @@ func (c Client[M, V, C, P]) SavePDF(
 }
 
 // SaveCBZ saves pages in FormatCBZ
-func (c Client[M, V, C, P]) SaveCBZ(
-	pages []PageWithImage[P],
+func (c Client) SaveCBZ(
+	pages []PageWithImage,
 	path string,
 	comicInfoXml ComicInfoXml,
 	options ComicInfoXmlOptions,
@@ -305,8 +305,8 @@ func (c Client[M, V, C, P]) SaveCBZ(
 }
 
 // SaveImages saves pages in FormatImages
-func (c Client[M, V, C, P]) SaveImages(
-	pages []PageWithImage[P],
+func (c Client) SaveImages(
+	pages []PageWithImage,
 	path string,
 ) error {
 	c.options.Log(fmt.Sprintf("Saving %d pages as images dir", len(pages)))
@@ -341,13 +341,13 @@ func (c Client[M, V, C, P]) SaveImages(
 }
 
 // DownloadPage downloads a page contents (image)
-func (c Client[M, V, C, P]) DownloadPage(ctx context.Context, page P) (PageWithImage[P], error) {
+func (c Client) DownloadPage(ctx context.Context, page Page) (PageWithImage, error) {
 	image, err := c.provider.GetPageImage(ctx, c.options.Log, page)
 	if err != nil {
-		return PageWithImage[P]{}, err
+		return PageWithImage{}, err
 	}
 
-	return PageWithImage[P]{
+	return PageWithImage{
 		Page:  page,
 		Image: image,
 	}, nil
@@ -359,8 +359,8 @@ type Filenames struct {
 
 // ComputeFilenames will apply name templates for chapter and manga
 // and return resulting strings.
-func (c Client[M, V, C, P]) ComputeFilenames(
-	chapter C,
+func (c Client) ComputeFilenames(
+	chapter Chapter,
 	format Format,
 ) (filenames Filenames) {
 	volume := chapter.Volume()

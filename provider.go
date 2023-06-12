@@ -46,16 +46,16 @@ func (p ProviderInfo) Validate() error {
 }
 
 // ProviderLoader gives information about provider without loading it first.
-type ProviderLoader[M Manga, V Volume, C Chapter, P Page] interface {
+type ProviderLoader interface {
 	// Info information about Provider
 	Info() ProviderInfo
 
 	// Load loads the Provider
-	Load(ctx context.Context) (Provider[M, V, C, P], error)
+	Load(ctx context.Context) (Provider, error)
 }
 
 // Provider exposes methods for searching mangas, getting chapters, pages and images
-type Provider[M Manga, V Volume, C Chapter, P Page] interface {
+type Provider interface {
 	// Info information about Provider
 	Info() ProviderInfo
 
@@ -66,7 +66,7 @@ type Provider[M Manga, V Volume, C Chapter, P Page] interface {
 		ctx context.Context,
 		log LogFunc,
 		query string,
-	) ([]M, error)
+	) ([]Manga, error)
 
 	// MangaVolumes gets volumes of the manga
 	//
@@ -74,8 +74,8 @@ type Provider[M Manga, V Volume, C Chapter, P Page] interface {
 	MangaVolumes(
 		ctx context.Context,
 		log LogFunc,
-		manga M,
-	) ([]V, error)
+		manga Manga,
+	) ([]Volume, error)
 
 	// VolumeChapters gets chapters of the given volume.
 	//
@@ -83,8 +83,8 @@ type Provider[M Manga, V Volume, C Chapter, P Page] interface {
 	VolumeChapters(
 		ctx context.Context,
 		log LogFunc,
-		volume V,
-	) ([]C, error)
+		volume Volume,
+	) ([]Chapter, error)
 
 	// ChapterPages gets pages of the given chapter.
 	//
@@ -92,8 +92,8 @@ type Provider[M Manga, V Volume, C Chapter, P Page] interface {
 	ChapterPages(
 		ctx context.Context,
 		log LogFunc,
-		chapter C,
-	) ([]P, error)
+		chapter Chapter,
+	) ([]Page, error)
 
 	// GetPageImage gets raw image contents of the given page.
 	//
@@ -101,7 +101,7 @@ type Provider[M Manga, V Volume, C Chapter, P Page] interface {
 	GetPageImage(
 		ctx context.Context,
 		log LogFunc,
-		page P,
+		page Page,
 	) ([]byte, error)
 }
 

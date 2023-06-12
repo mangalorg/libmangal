@@ -13,7 +13,7 @@ import (
 
 // removeChapter will remove chapter at given path.
 // Doesn't matter if it's a directory or a file.
-func (c Client[M, V, C, P]) removeChapter(chapterPath string) error {
+func (c Client) removeChapter(chapterPath string) error {
 	c.options.Log("Removing " + chapterPath)
 
 	isDir, err := afero.IsDir(c.options.FS, chapterPath)
@@ -29,7 +29,7 @@ func (c Client[M, V, C, P]) removeChapter(chapterPath string) error {
 }
 
 // downloadCover will download cover if it doesn't exist
-func (c Client[M, V, C, P]) downloadCover(ctx context.Context, chapter C, dir string) error {
+func (c Client) downloadCover(ctx context.Context, chapter Chapter, dir string) error {
 	c.options.Log("Downloading cover")
 
 	coverPath := filepath.Join(dir, coverJpgFilename)
@@ -84,7 +84,7 @@ func (c Client[M, V, C, P]) downloadCover(ctx context.Context, chapter C, dir st
 }
 
 // downloadBanner will download banner if it doesn't exist
-func (c Client[M, V, C, P]) downloadBanner(ctx context.Context, chapter C, dir string) error {
+func (c Client) downloadBanner(ctx context.Context, chapter Chapter, dir string) error {
 	c.options.Log("Downloading banner")
 
 	bannerPath := filepath.Join(dir, bannerJpgFilename)
@@ -138,7 +138,7 @@ func (c Client[M, V, C, P]) downloadBanner(ctx context.Context, chapter C, dir s
 	return afero.WriteFile(c.options.FS, bannerPath, cover, modeFile)
 }
 
-func (c Client[M, V, C, P]) getCoverURL(ctx context.Context, chapter C) (string, bool, error) {
+func (c Client) getCoverURL(ctx context.Context, chapter Chapter) (string, bool, error) {
 	manga := chapter.Volume().Manga()
 
 	coverURL := manga.Info().Cover
@@ -167,7 +167,7 @@ func (c Client[M, V, C, P]) getCoverURL(ctx context.Context, chapter C) (string,
 	return "", false, nil
 }
 
-func (c Client[M, V, C, P]) getBannerURL(ctx context.Context, chapter C) (string, bool, error) {
+func (c Client) getBannerURL(ctx context.Context, chapter Chapter) (string, bool, error) {
 	manga := chapter.Volume().Manga()
 
 	bannerURL := manga.Info().Banner
@@ -192,7 +192,27 @@ func (c Client[M, V, C, P]) getBannerURL(ctx context.Context, chapter C) (string
 	return "", false, nil
 }
 
-func (c Client[M, V, C, P]) writeSeriesJson(ctx context.Context, chapter C, dir string) error {
+// getSeriesJson gets SeriesJson from the chapter.
+// It tries to check if chapter manga implements mangaWithSeriesJson
+// in case of failure it will fetch manga from anilist.
+func (c Client) getSeriesJson(ctx context.Context, manga Manga) (SeriesJson, bool) {
+	withSeriesJson, ok := manga.(mangaWithSeriesJson)
+	if ok {
+		seriesJson, ok := withSeriesJson.SeriesJson()
+		if ok {
+			return seriesJson, true
+		}
+	}
+
+	withAnilist, ok, err := c.options.Anilist.MakeMangaWithAnilist(ctx, manga)
+	if err != nil || !ok {
+		return SeriesJson{}, false
+	}
+
+	return withAnilist.SeriesJson(), true
+}
+
+func (c Client) writeSeriesJson(ctx context.Context, chapter Chapter, dir string) error {
 	c.options.Log("Writing series.json")
 
 	seriesJsonPath := filepath.Join(dir, seriesJsonFilename)
@@ -206,19 +226,7 @@ func (c Client[M, V, C, P]) writeSeriesJson(ctx context.Context, chapter C, dir 
 		return nil
 	}
 
-	var seriesJson SeriesJson
-
-	seriesJson, ok := chapter.Volume().Manga().SeriesJson()
-	if !ok {
-		manga, ok, err := c.options.Anilist.MakeMangaWithAnilist(ctx, chapter.Volume().Manga())
-		if err != nil {
-			return err
-		}
-
-		if ok {
-			seriesJson = manga.SeriesJson()
-		}
-	}
+	seriesJson, _ := c.getSeriesJson(ctx, chapter.Volume().Manga())
 
 	marshalled, err := json.Marshal(seriesJson)
 	if err != nil {
@@ -234,9 +242,9 @@ func (c Client[M, V, C, P]) writeSeriesJson(ctx context.Context, chapter C, dir 
 }
 
 // downloadChapter is a helper function for DownloadChapter
-func (c Client[M, V, C, P]) downloadChapter(
+func (c Client) downloadChapter(
 	ctx context.Context,
-	chapter C,
+	chapter Chapter,
 	path string,
 	options DownloadOptions,
 ) error {
@@ -254,7 +262,7 @@ func (c Client[M, V, C, P]) downloadChapter(
 	case FormatPDF:
 		err = c.SavePDF(downloadedPages, path)
 	case FormatCBZ:
-		comicInfo, err := c.generateComicInfo(ctx, chapter)
+		comicInfo, err := c.getComicInfoXml(ctx, chapter)
 		if err != nil && options.Strict {
 			return err
 		}
@@ -271,9 +279,9 @@ func (c Client[M, V, C, P]) downloadChapter(
 	return nil
 }
 
-func (c Client[M, V, C, P]) generateComicInfo(
+func (c Client) getComicInfoXml(
 	ctx context.Context,
-	chapter C,
+	chapter Chapter,
 ) (ComicInfoXml, error) {
 	if comicInfo, ok := chapter.ComicInfoXml(); ok {
 		return comicInfo, nil
@@ -291,7 +299,7 @@ func (c Client[M, V, C, P]) generateComicInfo(
 	return chapterWithAnilist.ComicInfoXml(), nil
 }
 
-func (c Client[M, V, C, P]) readChapter(path string, incognito bool) error {
+func (c Client) readChapter(path string, incognito bool) error {
 	c.options.Log("Opening chapter with the default app")
 	// TODO: history? anilist sync?
 

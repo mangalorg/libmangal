@@ -1,5 +1,7 @@
 package libmangal
 
+import "fmt"
+
 type MangaInfo struct {
 	// Title of the manga
 	Title string
@@ -26,7 +28,18 @@ type MangaInfo struct {
 }
 
 type Manga interface {
+	fmt.Stringer
+
 	Info() MangaInfo
+
+	//// SeriesJson will be used to write series.json file.
+	//// If ok is false then mangal will try to search on Anilist for the
+	//// relevant manga.
+	//SeriesJson() (seriesJson SeriesJson, ok bool)
+}
+
+type mangaWithSeriesJson interface {
+	Manga
 
 	// SeriesJson will be used to write series.json file.
 	// If ok is false then mangal will try to search on Anilist for the
@@ -46,6 +59,8 @@ type VolumeInfo struct {
 //
 // Mangal expects that each Manga must have at least one Volume
 type Volume interface {
+	fmt.Stringer
+
 	Info() VolumeInfo
 
 	// Manga gets the Manga that this Volume is relevant to.
@@ -71,6 +86,8 @@ type ChapterInfo struct {
 
 // Chapter is what Volume consists of. Each chapter is about 24–40 pages.
 type Chapter interface {
+	fmt.Stringer
+
 	Info() ChapterInfo
 
 	// Volume gets the Volume that this Chapter is relevant to.
@@ -87,6 +104,8 @@ type Chapter interface {
 
 // Page is what Chapter consists of.
 type Page interface {
+	fmt.Stringer
+
 	// GetExtension gets the image extension of this page.
 	// An extension must start with the dot.
 	//
@@ -101,7 +120,7 @@ type Page interface {
 }
 
 // PageWithImage is a Page with downloaded image
-type PageWithImage[P Page] struct {
-	Page  P
+type PageWithImage struct {
+	Page  Page
 	Image []byte
 }
