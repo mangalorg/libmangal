@@ -30,17 +30,19 @@ type Anilist struct {
 	options     AnilistOptions
 }
 
+// NewAnilist constructs new Anilist client
 func NewAnilist(options AnilistOptions) Anilist {
 	return Anilist{options: options}
 }
 
+// GetByID gets anilist manga by its id
 func (a *Anilist) GetByID(
 	ctx context.Context,
 	id int,
 ) (AnilistManga, bool, error) {
 	found, manga, err := a.cacheStatusId(id)
 	if err != nil {
-		return AnilistManga{}, false, err
+		return AnilistManga{}, false, AnilistError{err}
 	}
 
 	if found {
@@ -49,7 +51,7 @@ func (a *Anilist) GetByID(
 
 	manga, ok, err := a.getByID(ctx, id)
 	if err != nil {
-		return AnilistManga{}, false, err
+		return AnilistManga{}, false, AnilistError{err}
 	}
 
 	if !ok {
@@ -58,7 +60,7 @@ func (a *Anilist) GetByID(
 
 	err = a.cacheSetId(id, manga)
 	if err != nil {
-		return AnilistManga{}, false, err
+		return AnilistManga{}, false, AnilistError{err}
 	}
 
 	return manga, true, nil
@@ -102,7 +104,7 @@ func (a *Anilist) SearchMangas(
 	{
 		found, ids, err := a.cacheStatusQuery(query)
 		if err != nil {
-			return nil, err
+			return nil, AnilistError{err}
 		}
 
 		if found {
@@ -132,7 +134,7 @@ func (a *Anilist) SearchMangas(
 	for i, manga := range mangas {
 		err := a.cacheSetId(manga.ID, manga)
 		if err != nil {
-			return nil, err
+			return nil, AnilistError{err}
 		}
 
 		ids[i] = manga.ID
@@ -140,7 +142,7 @@ func (a *Anilist) SearchMangas(
 
 	err = a.cacheSetQuery(query, ids)
 	if err != nil {
-		return nil, err
+		return nil, AnilistError{err}
 	}
 
 	return mangas, nil
@@ -265,13 +267,13 @@ func (a *Anilist) FindClosestManga(
 
 	found, id, err := a.cacheStatusTitle(title)
 	if err != nil {
-		return AnilistManga{}, false, err
+		return AnilistManga{}, false, AnilistError{err}
 	}
 
 	if found {
 		found, manga, err := a.cacheStatusId(id)
 		if err != nil {
-			return AnilistManga{}, false, err
+			return AnilistManga{}, false, AnilistError{err}
 		}
 
 		if found {
@@ -286,7 +288,7 @@ func (a *Anilist) FindClosestManga(
 		3,
 	)
 	if err != nil {
-		return AnilistManga{}, false, err
+		return AnilistManga{}, false, AnilistError{err}
 	}
 
 	if !ok {
@@ -295,11 +297,7 @@ func (a *Anilist) FindClosestManga(
 
 	err = a.cacheSetTitle(title, manga.ID)
 	if err != nil {
-		return AnilistManga{}, false, err
-	}
-
-	if !ok {
-		return AnilistManga{}, false, nil
+		return AnilistManga{}, false, AnilistError{err}
 	}
 
 	return manga, true, nil
@@ -349,12 +347,17 @@ func (a *Anilist) findClosestManga(
 }
 
 func (a *Anilist) BindTitleWithID(title string, anilistMangaId int) error {
-	return a.options.TitleToIDStore.Set(title, anilistMangaId)
+	err := a.options.TitleToIDStore.Set(title, anilistMangaId)
+	if err != nil {
+		return AnilistError{err}
+	}
+
+	return nil
 }
 
 func (a *Anilist) SetProgress(ctx context.Context, id, progress int) error {
 	if !a.IsAuthorized() {
-		return errors.New("not authorized")
+		return AnilistError{errors.New("not authorized")}
 	}
 
 	_, err := sendRequest[struct {
@@ -373,7 +376,11 @@ func (a *Anilist) SetProgress(ctx context.Context, id, progress int) error {
 		},
 	)
 
-	return err
+	if err != nil {
+		return AnilistError{err}
+	}
+
+	return nil
 }
 
 func (a *Anilist) MakeMangaWithAnilist(
@@ -391,7 +398,7 @@ func (a *Anilist) MakeMangaWithAnilist(
 
 	anilistManga, ok, err := a.FindClosestManga(ctx, title)
 	if err != nil {
-		return MangaWithAnilist{}, false, err
+		return MangaWithAnilist{}, false, AnilistError{err}
 	}
 
 	if !ok {
@@ -410,7 +417,7 @@ func (a *Anilist) MakeChapterWithAnilist(
 ) (ChapterOfMangaWithAnilist, bool, error) {
 	mangaWithAnilist, ok, err := a.MakeMangaWithAnilist(ctx, chapter.Volume().Manga())
 	if err != nil {
-		return ChapterOfMangaWithAnilist{}, false, err
+		return ChapterOfMangaWithAnilist{}, false, AnilistError{err}
 	}
 
 	if !ok {

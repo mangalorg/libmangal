@@ -130,20 +130,20 @@ func (m *MangaWithAnilist) SeriesJson() SeriesJson {
 		m.Anilist.EndDate.Month, m.Anilist.EndDate.Year,
 	)
 
-	seriesJson := SeriesJson{}
-	seriesJson.Metadata.Type = "comicSeries"
-	seriesJson.Metadata.Name = m.Info().Title
-	seriesJson.Metadata.DescriptionFormatted = m.Anilist.Description
-	seriesJson.Metadata.DescriptionText = m.Anilist.Description
-	seriesJson.Metadata.Status = status
-	seriesJson.Metadata.Year = m.Anilist.StartDate.Year
-	seriesJson.Metadata.ComicImage = m.Anilist.CoverImage.ExtraLarge
-	seriesJson.Metadata.Publisher = publisher
-	seriesJson.Metadata.BookType = "Print"
-	seriesJson.Metadata.TotalIssues = m.Anilist.Chapters
-	seriesJson.Metadata.PublicationRun = publicationRun
-
-	return seriesJson
+	return SeriesJson{
+		Type:                 "comicSeries",
+		Name:                 m.Info().Title,
+		DescriptionFormatted: m.Anilist.Description,
+		DescriptionText:      m.Anilist.Description,
+		Status:               status,
+		Year:                 m.Anilist.StartDate.Year,
+		ComicImage:           m.Anilist.CoverImage.ExtraLarge,
+		Publisher:            publisher,
+		ComicID:              m.Anilist.ID,
+		BookType:             "Print",
+		TotalIssues:          m.Anilist.Chapters,
+		PublicationRun:       publicationRun,
+	}
 }
 
 type ChapterOfMangaWithAnilist struct {

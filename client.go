@@ -38,9 +38,8 @@ func NewClient(
 // Client is the wrapper around Provider with the extended functionality.
 // It's the core of the libmangal
 type Client struct {
-	rawScript []byte
-	provider  Provider
-	options   ClientOptions
+	provider Provider
+	options  ClientOptions
 }
 
 // SearchMangas searches for mangas with the given query
@@ -81,7 +80,7 @@ func (c Client) DownloadChapter(
 	chapter Chapter,
 	options DownloadOptions,
 ) (string, error) {
-	c.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter, options.Format.String()))
+	c.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter, options.Format))
 
 	filenames := c.ComputeFilenames(chapter, options.Format)
 
@@ -109,7 +108,7 @@ func (c Client) DownloadChapter(
 		c.options.Log(fmt.Sprintf("Chapter %q already exists, skipping", chapter))
 
 		if options.ReadAfter {
-			return chapterPath, c.readChapter(chapterPath, options.ReadIncognito)
+			return chapterPath, c.readChapter(ctx, chapterPath, chapter, options.ReadIncognito)
 		}
 
 		return chapterPath, nil
@@ -139,21 +138,21 @@ func (c Client) DownloadChapter(
 	if options.WriteSeriesJson {
 		err := c.writeSeriesJson(ctx, chapter, options.Directory)
 		if err != nil && options.Strict {
-			return "", err
+			return "", MetadataError{err}
 		}
 	}
 
 	if options.DownloadMangaCover {
 		err := c.downloadCover(ctx, chapter, options.Directory)
 		if err != nil && options.Strict {
-			return "", err
+			return "", MetadataError{err}
 		}
 	}
 
 	if options.DownloadMangaBanner {
 		err := c.downloadBanner(ctx, chapter, options.Directory)
 		if err != nil && options.Strict {
-			return "", err
+			return "", MetadataError{err}
 		}
 	}
 
@@ -168,7 +167,7 @@ func (c Client) DownloadChapter(
 	}
 
 	if options.ReadAfter {
-		return chapterPath, c.readChapter(chapterPath, options.ReadIncognito)
+		return chapterPath, c.readChapter(ctx, chapterPath, chapter, options.ReadIncognito)
 	}
 
 	return chapterPath, nil
@@ -231,7 +230,7 @@ func (c Client) SavePDF(
 	// convert to readers
 	var images = make([]io.Reader, len(pages))
 	for i, page := range pages {
-		images[i] = bytes.NewReader(page.Image)
+		images[i] = bytes.NewReader(page.Image())
 	}
 
 	return api.ImportImages(nil, file, images, nil, nil)
@@ -267,7 +266,7 @@ func (c Client) SaveCBZ(
 
 		var writer io.Writer
 		writer, err = zipWriter.CreateHeader(&zip.FileHeader{
-			Name:   fmt.Sprintf("%04d%s", i+1, page.Page.GetExtension()),
+			Name:   fmt.Sprintf("%04d%s", i+1, page.GetExtension()),
 			Method: zip.Store,
 		})
 
@@ -275,7 +274,7 @@ func (c Client) SaveCBZ(
 			return err
 		}
 
-		_, err = writer.Write(page.Image)
+		_, err = writer.Write(page.Image())
 		if err != nil {
 			return err
 		}
@@ -318,18 +317,13 @@ func (c Client) SaveImages(
 	for i, page := range pages {
 		c.options.Log(fmt.Sprintf("Saving page #%d", i))
 
-		if page.Image == nil {
-			// this should not occur, but just for the safety
-			return fmt.Errorf("reader %d is nil", i)
-		}
-
 		var file afero.File
-		file, err = c.options.FS.Create(filepath.Join(path, fmt.Sprintf("%04d%s", i+1, page.Page.GetExtension())))
+		file, err = c.options.FS.Create(filepath.Join(path, fmt.Sprintf("%04d%s", i+1, page.GetExtension())))
 		if err != nil {
 			return err
 		}
 
-		_, err = file.Write(page.Image)
+		_, err = file.Write(page.Image())
 		if err != nil {
 			return err
 		}
@@ -342,14 +336,18 @@ func (c Client) SaveImages(
 
 // DownloadPage downloads a page contents (image)
 func (c Client) DownloadPage(ctx context.Context, page Page) (PageWithImage, error) {
-	image, err := c.provider.GetPageImage(ctx, c.options.Log, page)
-	if err != nil {
-		return PageWithImage{}, err
+	if withImage, ok := page.(PageWithImage); ok {
+		return withImage, nil
 	}
 
-	return PageWithImage{
+	image, err := c.provider.GetPageImage(ctx, c.options.Log, page)
+	if err != nil {
+		return nil, err
+	}
+
+	return pageWithImage{
 		Page:  page,
-		Image: image,
+		image: image,
 	}, nil
 }
 

@@ -31,20 +31,15 @@ type Manga interface {
 	fmt.Stringer
 
 	Info() MangaInfo
-
-	//// SeriesJson will be used to write series.json file.
-	//// If ok is false then mangal will try to search on Anilist for the
-	//// relevant manga.
-	//SeriesJson() (seriesJson SeriesJson, ok bool)
 }
 
-type mangaWithSeriesJson interface {
+type MangaWithSeriesJson interface {
 	Manga
 
 	// SeriesJson will be used to write series.json file.
 	// If ok is false then mangal will try to search on Anilist for the
 	// relevant manga.
-	SeriesJson() (seriesJson SeriesJson, ok bool)
+	SeriesJson() (SeriesJson, error)
 }
 
 type VolumeInfo struct {
@@ -95,11 +90,15 @@ type Chapter interface {
 	// Implementation should not make any external requests
 	// nor be computationally heavy.
 	Volume() Volume
+}
+
+type ChapterWithComicInfoXml interface {
+	Chapter
 
 	// ComicInfoXml will be used to write ComicInfo.xml file.
 	// If ok is false then mangal will try to search on Anilist for the
 	// relevant manga.
-	ComicInfoXml() (comicInfo ComicInfoXml, ok bool)
+	ComicInfoXml() (ComicInfoXml, error)
 }
 
 // Page is what Chapter consists of.
@@ -120,7 +119,19 @@ type Page interface {
 }
 
 // PageWithImage is a Page with downloaded image
-type PageWithImage struct {
-	Page  Page
-	Image []byte
+type PageWithImage interface {
+	Page
+
+	// Image gets the image contents. This operation should not perform any extra requests.
+	// Implementation should expose this method only if the Page already contains image contents.
+	Image() []byte
+}
+
+type pageWithImage struct {
+	Page
+	image []byte
+}
+
+func (p pageWithImage) Image() []byte {
+	return p.image
 }

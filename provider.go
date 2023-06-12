@@ -47,6 +47,8 @@ func (p ProviderInfo) Validate() error {
 
 // ProviderLoader gives information about provider without loading it first.
 type ProviderLoader interface {
+	fmt.Stringer
+
 	// Info information about Provider
 	Info() ProviderInfo
 
@@ -56,6 +58,8 @@ type ProviderLoader interface {
 
 // Provider exposes methods for searching mangas, getting chapters, pages and images
 type Provider interface {
+	fmt.Stringer
+
 	// Info information about Provider
 	Info() ProviderInfo
 

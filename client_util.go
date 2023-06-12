@@ -2,11 +2,12 @@ package libmangal
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/afero"
+	"io"
+	"math"
 	"net/http"
 	"path/filepath"
 )
@@ -74,7 +75,7 @@ func (c Client) downloadCover(ctx context.Context, chapter Chapter, dir string) 
 		return fmt.Errorf("unexpected http status: %s", response.Status)
 	}
 
-	cover, err := readResponseBody(response.ContentLength, response.Body)
+	cover, err := io.ReadAll(response.Body)
 	if err != nil {
 		return err
 	}
@@ -129,7 +130,7 @@ func (c Client) downloadBanner(ctx context.Context, chapter Chapter, dir string)
 		return fmt.Errorf("unexpected http status: %s", response.Status)
 	}
 
-	cover, err := readResponseBody(response.ContentLength, response.Body)
+	cover, err := io.ReadAll(response.Body)
 	if err != nil {
 		return err
 	}
@@ -193,23 +194,31 @@ func (c Client) getBannerURL(ctx context.Context, chapter Chapter) (string, bool
 }
 
 // getSeriesJson gets SeriesJson from the chapter.
-// It tries to check if chapter manga implements mangaWithSeriesJson
+// It tries to check if chapter manga implements MangaWithSeriesJson
 // in case of failure it will fetch manga from anilist.
-func (c Client) getSeriesJson(ctx context.Context, manga Manga) (SeriesJson, bool) {
-	withSeriesJson, ok := manga.(mangaWithSeriesJson)
+func (c Client) getSeriesJson(ctx context.Context, manga Manga) (SeriesJson, error) {
+	withSeriesJson, ok := manga.(MangaWithSeriesJson)
 	if ok {
-		seriesJson, ok := withSeriesJson.SeriesJson()
+		seriesJson, err := withSeriesJson.SeriesJson()
+		if err != nil {
+			return SeriesJson{}, err
+		}
+
 		if ok {
-			return seriesJson, true
+			return seriesJson, nil
 		}
 	}
 
 	withAnilist, ok, err := c.options.Anilist.MakeMangaWithAnilist(ctx, manga)
-	if err != nil || !ok {
-		return SeriesJson{}, false
+	if err != nil {
+		return SeriesJson{}, err
 	}
 
-	return withAnilist.SeriesJson(), true
+	if !ok {
+		return SeriesJson{}, errors.New("can't gen series json from manga")
+	}
+
+	return withAnilist.SeriesJson(), nil
 }
 
 func (c Client) writeSeriesJson(ctx context.Context, chapter Chapter, dir string) error {
@@ -226,9 +235,12 @@ func (c Client) writeSeriesJson(ctx context.Context, chapter Chapter, dir string
 		return nil
 	}
 
-	seriesJson, _ := c.getSeriesJson(ctx, chapter.Volume().Manga())
+	seriesJson, err := c.getSeriesJson(ctx, chapter.Volume().Manga())
+	if err != nil {
+		return err
+	}
 
-	marshalled, err := json.Marshal(seriesJson)
+	marshalled, err := seriesJson.wrapper().marshal()
 	if err != nil {
 		return err
 	}
@@ -283,7 +295,13 @@ func (c Client) getComicInfoXml(
 	ctx context.Context,
 	chapter Chapter,
 ) (ComicInfoXml, error) {
-	if comicInfo, ok := chapter.ComicInfoXml(); ok {
+	withComicInfo, ok := chapter.(ChapterWithComicInfoXml)
+	if ok {
+		comicInfo, err := withComicInfo.ComicInfoXml()
+		if err != nil {
+			return ComicInfoXml{}, err
+		}
+
 		return comicInfo, nil
 	}
 
@@ -293,13 +311,13 @@ func (c Client) getComicInfoXml(
 	}
 
 	if !ok {
-		return ComicInfoXml{}, nil
+		return ComicInfoXml{}, errors.New("can't get ComicInfo")
 	}
 
 	return chapterWithAnilist.ComicInfoXml(), nil
 }
 
-func (c Client) readChapter(path string, incognito bool) error {
+func (c Client) readChapter(ctx context.Context, path string, chapter Chapter, incognito bool) error {
 	c.options.Log("Opening chapter with the default app")
 	// TODO: history? anilist sync?
 
@@ -308,5 +326,29 @@ func (c Client) readChapter(path string, incognito bool) error {
 		return err
 	}
 
+	if c.options.Anilist.IsAuthorized() && !incognito {
+		return c.markChapterAsRead(ctx, chapter)
+	}
+
 	return nil
+}
+
+func (c Client) markChapterAsRead(ctx context.Context, chapter Chapter) error {
+	chapterMangaInfo := chapter.Volume().Manga().Info()
+	titleToSearch := chapterMangaInfo.AnilistSearch
+	if titleToSearch == "" {
+		titleToSearch = chapterMangaInfo.Title
+	}
+
+	manga, ok, err := c.options.Anilist.FindClosestManga(ctx, titleToSearch)
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		return fmt.Errorf("manga for chapter %q was not found on anilist", chapter)
+	}
+
+	progress := int(math.Trunc(float64(chapter.Info().Number)))
+	return c.options.Anilist.SetProgress(ctx, manga.ID, progress)
 }

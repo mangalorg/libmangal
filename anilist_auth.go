@@ -30,7 +30,7 @@ func (a *Anilist) Login(
 		{"code", credentials.Code},
 	} {
 		if t.value == "" {
-			return fmt.Errorf("%s is empty", t.name)
+			return AnilistError{fmt.Errorf("%s is empty", t.name)}
 		}
 	}
 
@@ -44,7 +44,7 @@ func (a *Anilist) Login(
 		"redirect_uri":  "https://anilist.co/api/v2/oauth/pin",
 	})
 	if err != nil {
-		return err
+		return AnilistError{err}
 	}
 
 	request, err := http.NewRequestWithContext(
@@ -54,7 +54,7 @@ func (a *Anilist) Login(
 		buffer,
 	)
 	if err != nil {
-		return err
+		return AnilistError{err}
 	}
 
 	request.Header.Set("Content-Type", "application/json")
@@ -62,12 +62,12 @@ func (a *Anilist) Login(
 
 	response, err := a.options.HTTPClient.Do(request)
 	if err != nil {
-		return err
+		return AnilistError{err}
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return errors.New(response.Status)
+		return AnilistError{errors.New(response.Status)}
 	}
 
 	var authResponse struct {
@@ -76,11 +76,10 @@ func (a *Anilist) Login(
 
 	err = json.NewDecoder(response.Body).Decode(&authResponse)
 	if err != nil {
-		return err
+		return AnilistError{err}
 	}
 
 	a.accessToken = authResponse.AccessToken
-
 	return nil
 }
 
