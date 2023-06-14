@@ -15,33 +15,33 @@ import (
 // removeChapter will remove chapter at given path.
 // Doesn't matter if it's a directory or a file.
 func (c Client) removeChapter(chapterPath string) error {
-	c.options.Log("Removing " + chapterPath)
+	c.Options.Log("Removing " + chapterPath)
 
-	isDir, err := afero.IsDir(c.options.FS, chapterPath)
+	isDir, err := afero.IsDir(c.Options.FS, chapterPath)
 	if err != nil {
 		return err
 	}
 
 	if isDir {
-		return c.options.FS.RemoveAll(chapterPath)
+		return c.Options.FS.RemoveAll(chapterPath)
 	}
 
-	return c.options.FS.Remove(chapterPath)
+	return c.Options.FS.Remove(chapterPath)
 }
 
 // downloadCover will download cover if it doesn't exist
 func (c Client) downloadCover(ctx context.Context, chapter Chapter, dir string) error {
-	c.options.Log("Downloading cover")
+	c.Options.Log("Downloading cover")
 
 	coverPath := filepath.Join(dir, coverJpgFilename)
 
-	exists, err := afero.Exists(c.options.FS, coverPath)
+	exists, err := afero.Exists(c.Options.FS, coverPath)
 	if err != nil {
 		return err
 	}
 
 	if exists {
-		c.options.Log("Cover is already downloaded, skipping")
+		c.Options.Log("Cover is already downloaded, skipping")
 		return nil
 	}
 
@@ -49,7 +49,7 @@ func (c Client) downloadCover(ctx context.Context, chapter Chapter, dir string) 
 	if err != nil {
 		return err
 	}
-	c.options.Log(coverURL)
+	c.Options.Log(coverURL)
 
 	if !ok {
 		return errors.New("cover url not found")
@@ -64,7 +64,7 @@ func (c Client) downloadCover(ctx context.Context, chapter Chapter, dir string) 
 	request.Header.Set("User-Agent", UserAgent)
 	request.Header.Set("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
 
-	response, err := c.options.HTTPClient.Do(request)
+	response, err := c.Options.HTTPClient.Do(request)
 	if err != nil {
 		return err
 	}
@@ -80,23 +80,23 @@ func (c Client) downloadCover(ctx context.Context, chapter Chapter, dir string) 
 		return err
 	}
 
-	c.options.Log("Cover downloaded")
-	return afero.WriteFile(c.options.FS, coverPath, cover, modeFile)
+	c.Options.Log("Cover downloaded")
+	return afero.WriteFile(c.Options.FS, coverPath, cover, modeFile)
 }
 
 // downloadBanner will download banner if it doesn't exist
 func (c Client) downloadBanner(ctx context.Context, chapter Chapter, dir string) error {
-	c.options.Log("Downloading banner")
+	c.Options.Log("Downloading banner")
 
 	bannerPath := filepath.Join(dir, bannerJpgFilename)
 
-	exists, err := afero.Exists(c.options.FS, bannerPath)
+	exists, err := afero.Exists(c.Options.FS, bannerPath)
 	if err != nil {
 		return err
 	}
 
 	if exists {
-		c.options.Log("Banner is already downloaded, skipping")
+		c.Options.Log("Banner is already downloaded, skipping")
 		return nil
 	}
 
@@ -104,7 +104,7 @@ func (c Client) downloadBanner(ctx context.Context, chapter Chapter, dir string)
 	if err != nil {
 		return err
 	}
-	c.options.Log(coverURL)
+	c.Options.Log(coverURL)
 
 	if !ok {
 		return errors.New("cover url not found")
@@ -119,7 +119,7 @@ func (c Client) downloadBanner(ctx context.Context, chapter Chapter, dir string)
 	request.Header.Set("User-Agent", UserAgent)
 	request.Header.Set("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
 
-	response, err := c.options.HTTPClient.Do(request)
+	response, err := c.Options.HTTPClient.Do(request)
 	if err != nil {
 		return err
 	}
@@ -135,8 +135,8 @@ func (c Client) downloadBanner(ctx context.Context, chapter Chapter, dir string)
 		return err
 	}
 
-	c.options.Log("Banner downloaded")
-	return afero.WriteFile(c.options.FS, bannerPath, cover, modeFile)
+	c.Options.Log("Banner downloaded")
+	return afero.WriteFile(c.Options.FS, bannerPath, cover, modeFile)
 }
 
 func (c Client) getCoverURL(ctx context.Context, chapter Chapter) (string, bool, error) {
@@ -147,7 +147,7 @@ func (c Client) getCoverURL(ctx context.Context, chapter Chapter) (string, bool,
 		return coverURL, true, nil
 	}
 
-	mangaWithAnilist, ok, err := c.options.Anilist.MakeMangaWithAnilist(ctx, manga)
+	mangaWithAnilist, ok, err := c.Options.Anilist.MakeMangaWithAnilist(ctx, manga)
 	if err != nil {
 		return "", false, err
 	}
@@ -176,7 +176,7 @@ func (c Client) getBannerURL(ctx context.Context, chapter Chapter) (string, bool
 		return bannerURL, true, nil
 	}
 
-	mangaWithAnilist, ok, err := c.options.Anilist.MakeMangaWithAnilist(ctx, manga)
+	mangaWithAnilist, ok, err := c.Options.Anilist.MakeMangaWithAnilist(ctx, manga)
 	if err != nil {
 		return "", false, err
 	}
@@ -209,7 +209,7 @@ func (c Client) getSeriesJson(ctx context.Context, manga Manga) (SeriesJson, err
 		}
 	}
 
-	withAnilist, ok, err := c.options.Anilist.MakeMangaWithAnilist(ctx, manga)
+	withAnilist, ok, err := c.Options.Anilist.MakeMangaWithAnilist(ctx, manga)
 	if err != nil {
 		return SeriesJson{}, err
 	}
@@ -222,11 +222,11 @@ func (c Client) getSeriesJson(ctx context.Context, manga Manga) (SeriesJson, err
 }
 
 func (c Client) writeSeriesJson(ctx context.Context, chapter Chapter, dir string) error {
-	c.options.Log("Writing series.json")
+	c.Options.Log("Writing series.json")
 
 	seriesJsonPath := filepath.Join(dir, seriesJsonFilename)
 
-	exists, err := afero.Exists(c.options.FS, seriesJsonPath)
+	exists, err := afero.Exists(c.Options.FS, seriesJsonPath)
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func (c Client) writeSeriesJson(ctx context.Context, chapter Chapter, dir string
 		return err
 	}
 
-	err = afero.WriteFile(c.options.FS, seriesJsonPath, marshalled, modeFile)
+	err = afero.WriteFile(c.Options.FS, seriesJsonPath, marshalled, modeFile)
 	if err != nil {
 		return err
 	}
@@ -260,7 +260,7 @@ func (c Client) downloadChapter(
 	path string,
 	options DownloadOptions,
 ) error {
-	pages, err := c.provider.ChapterPages(ctx, c.options.Log, chapter)
+	pages, err := c.provider.ChapterPages(ctx, c.Options.Log, chapter)
 	if err != nil {
 		return err
 	}
@@ -305,7 +305,7 @@ func (c Client) getComicInfoXml(
 		return comicInfo, nil
 	}
 
-	chapterWithAnilist, ok, err := c.options.Anilist.MakeChapterWithAnilist(ctx, chapter)
+	chapterWithAnilist, ok, err := c.Options.Anilist.MakeChapterWithAnilist(ctx, chapter)
 	if err != nil {
 		return ComicInfoXml{}, err
 	}
@@ -318,7 +318,7 @@ func (c Client) getComicInfoXml(
 }
 
 func (c Client) readChapter(ctx context.Context, path string, chapter Chapter, incognito bool) error {
-	c.options.Log("Opening chapter with the default app")
+	c.Options.Log("Opening chapter with the default app")
 	// TODO: history? anilist sync?
 
 	err := open.Run(path)
@@ -326,7 +326,7 @@ func (c Client) readChapter(ctx context.Context, path string, chapter Chapter, i
 		return err
 	}
 
-	if c.options.Anilist.IsAuthorized() && !incognito {
+	if c.Options.Anilist.IsAuthorized() && !incognito {
 		return c.markChapterAsRead(ctx, chapter)
 	}
 
@@ -340,7 +340,7 @@ func (c Client) markChapterAsRead(ctx context.Context, chapter Chapter) error {
 		titleToSearch = chapterMangaInfo.Title
 	}
 
-	manga, ok, err := c.options.Anilist.FindClosestManga(ctx, titleToSearch)
+	manga, ok, err := c.Options.Anilist.FindClosestManga(ctx, titleToSearch)
 	if err != nil {
 		return err
 	}
@@ -350,5 +350,5 @@ func (c Client) markChapterAsRead(ctx context.Context, chapter Chapter) error {
 	}
 
 	progress := int(math.Trunc(float64(chapter.Info().Number)))
-	return c.options.Anilist.SetProgress(ctx, manga.ID, progress)
+	return c.Options.Anilist.SetProgress(ctx, manga.ID, progress)
 }

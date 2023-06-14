@@ -31,7 +31,7 @@ func NewClient(
 
 	return Client{
 		provider: provider,
-		options:  options,
+		Options:  options,
 	}, nil
 }
 
@@ -39,27 +39,27 @@ func NewClient(
 // It's the core of the libmangal
 type Client struct {
 	provider Provider
-	options  ClientOptions
+	Options  ClientOptions
 }
 
 // SearchMangas searches for mangas with the given query
 func (c Client) SearchMangas(ctx context.Context, query string) ([]Manga, error) {
-	return c.provider.SearchMangas(ctx, c.options.Log, query)
+	return c.provider.SearchMangas(ctx, c.Options.Log, query)
 }
 
 // MangaVolumes gets chapters of the given manga
 func (c Client) MangaVolumes(ctx context.Context, manga Manga) ([]Volume, error) {
-	return c.provider.MangaVolumes(ctx, c.options.Log, manga)
+	return c.provider.MangaVolumes(ctx, c.Options.Log, manga)
 }
 
 // VolumeChapters gets chapters of the given manga
 func (c Client) VolumeChapters(ctx context.Context, volume Volume) ([]Chapter, error) {
-	return c.provider.VolumeChapters(ctx, c.options.Log, volume)
+	return c.provider.VolumeChapters(ctx, c.Options.Log, volume)
 }
 
 // ChapterPages gets pages of the given chapter
 func (c Client) ChapterPages(ctx context.Context, chapter Chapter) ([]Page, error) {
-	return c.provider.ChapterPages(ctx, c.options.Log, chapter)
+	return c.provider.ChapterPages(ctx, c.Options.Log, chapter)
 }
 
 func (c Client) String() string {
@@ -80,7 +80,7 @@ func (c Client) DownloadChapter(
 	chapter Chapter,
 	options DownloadOptions,
 ) (string, error) {
-	c.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter, options.Format))
+	c.Options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter, options.Format))
 
 	filenames := c.ComputeFilenames(chapter, options.Format)
 
@@ -92,20 +92,20 @@ func (c Client) DownloadChapter(
 		options.Directory = filepath.Join(options.Directory, filenames.Volume)
 	}
 
-	err := c.options.FS.MkdirAll(options.Directory, modeDir)
+	err := c.Options.FS.MkdirAll(options.Directory, modeDir)
 	if err != nil {
 		return "", err
 	}
 
 	chapterPath := filepath.Join(options.Directory, filenames.Chapter)
 
-	chapterExists, err := afero.Exists(c.options.FS, chapterPath)
+	chapterExists, err := afero.Exists(c.Options.FS, chapterPath)
 	if err != nil {
 		return "", err
 	}
 
 	if chapterExists && options.SkipIfExists {
-		c.options.Log(fmt.Sprintf("Chapter %q already exists, skipping", chapter))
+		c.Options.Log(fmt.Sprintf("Chapter %q already exists, skipping", chapter))
 
 		if options.ReadAfter {
 			return chapterPath, c.readChapter(ctx, chapterPath, chapter, options.ReadIncognito)
@@ -116,7 +116,7 @@ func (c Client) DownloadChapter(
 
 	// create a temp dir where chapter will be downloaded.
 	// after successful download chapter will be moved to the original location
-	tempDir, err := afero.TempDir(c.options.FS, "", "")
+	tempDir, err := afero.TempDir(c.Options.FS, "", "")
 	if err != nil {
 		return "", err
 	}
@@ -158,7 +158,7 @@ func (c Client) DownloadChapter(
 
 	// move to the original location
 	// only after everything else was successful
-	err = c.options.FS.Rename(
+	err = c.Options.FS.Rename(
 		chapterTempPath,
 		chapterPath,
 	)
@@ -181,7 +181,7 @@ func (c Client) DownloadPagesInBatch(
 	ctx context.Context,
 	pages []Page,
 ) ([]PageWithImage, error) {
-	c.options.Log(fmt.Sprintf("Downloading %d pages", len(pages)))
+	c.Options.Log(fmt.Sprintf("Downloading %d pages", len(pages)))
 
 	g, _ := errgroup.WithContext(ctx)
 
@@ -191,13 +191,13 @@ func (c Client) DownloadPagesInBatch(
 		// https://github.com/golang/go/wiki/CommonMistakes#using-goroutines-on-loop-iterator-variables
 		i, page := i, page
 		g.Go(func() error {
-			c.options.Log(fmt.Sprintf("Page #%03d: downloading", i+1))
+			c.Options.Log(fmt.Sprintf("Page #%03d: downloading", i+1))
 			downloaded, err := c.DownloadPage(ctx, page)
 			if err != nil {
 				return err
 			}
 
-			c.options.Log(fmt.Sprintf("Page #%03d: done", i+1))
+			c.Options.Log(fmt.Sprintf("Page #%03d: done", i+1))
 
 			downloadedPages[i] = downloaded
 
@@ -217,10 +217,10 @@ func (c Client) SavePDF(
 	pages []PageWithImage,
 	path string,
 ) error {
-	c.options.Log(fmt.Sprintf("Saving %d pages as PDF", len(pages)))
+	c.Options.Log(fmt.Sprintf("Saving %d pages as PDF", len(pages)))
 
 	var file afero.File
-	file, err := c.options.FS.Create(path)
+	file, err := c.Options.FS.Create(path)
 	if err != nil {
 		return err
 	}
@@ -243,10 +243,10 @@ func (c Client) SaveCBZ(
 	comicInfoXml ComicInfoXml,
 	options ComicInfoXmlOptions,
 ) error {
-	c.options.Log(fmt.Sprintf("Saving %d pages as CBZ", len(pages)))
+	c.Options.Log(fmt.Sprintf("Saving %d pages as CBZ", len(pages)))
 
 	var file afero.File
-	file, err := c.options.FS.Create(path)
+	file, err := c.Options.FS.Create(path)
 	if err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func (c Client) SaveCBZ(
 	defer zipWriter.Close()
 
 	for i, page := range pages {
-		c.options.Log(fmt.Sprintf("Saving page #%d", i))
+		c.Options.Log(fmt.Sprintf("Saving page #%d", i))
 
 		if page.Image == nil {
 			// this should not occur, but just for the safety
@@ -308,17 +308,17 @@ func (c Client) SaveImages(
 	pages []PageWithImage,
 	path string,
 ) error {
-	c.options.Log(fmt.Sprintf("Saving %d pages as images dir", len(pages)))
-	err := c.options.FS.MkdirAll(path, modeDir)
+	c.Options.Log(fmt.Sprintf("Saving %d pages as images dir", len(pages)))
+	err := c.Options.FS.MkdirAll(path, modeDir)
 	if err != nil {
 		return err
 	}
 
 	for i, page := range pages {
-		c.options.Log(fmt.Sprintf("Saving page #%d", i))
+		c.Options.Log(fmt.Sprintf("Saving page #%d", i))
 
 		var file afero.File
-		file, err = c.options.FS.Create(filepath.Join(path, fmt.Sprintf("%04d%s", i+1, page.GetExtension())))
+		file, err = c.Options.FS.Create(filepath.Join(path, fmt.Sprintf("%04d%s", i+1, page.GetExtension())))
 		if err != nil {
 			return err
 		}
@@ -340,7 +340,7 @@ func (c Client) DownloadPage(ctx context.Context, page Page) (PageWithImage, err
 		return withImage, nil
 	}
 
-	image, err := c.provider.GetPageImage(ctx, c.options.Log, page)
+	image, err := c.provider.GetPageImage(ctx, c.Options.Log, page)
 	if err != nil {
 		return nil, err
 	}
@@ -364,17 +364,17 @@ func (c Client) ComputeFilenames(
 	volume := chapter.Volume()
 	manga := volume.Manga()
 
-	filenames.Manga = c.options.MangaNameTemplate(
+	filenames.Manga = c.Options.MangaNameTemplate(
 		c.String(),
 		manga,
 	)
 
-	filenames.Volume = c.options.VolumeNameTemplate(
+	filenames.Volume = c.Options.VolumeNameTemplate(
 		c.String(),
 		volume,
 	)
 
-	filenames.Chapter = c.options.ChapterNameTemplate(
+	filenames.Chapter = c.Options.ChapterNameTemplate(
 		c.String(),
 		chapter,
 	)
