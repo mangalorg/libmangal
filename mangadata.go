@@ -4,7 +4,7 @@ import "fmt"
 
 type MangaInfo struct {
 	// Title of the manga
-	Title string
+	Title string `json:"title"`
 
 	// AnilistSearch is the title of the manga
 	// that will be used for on Anilist.
@@ -12,19 +12,19 @@ type MangaInfo struct {
 	// This is a separate field from the Title due to Title could
 	// be on any language, but Anilist only supports searching
 	// for english, native and romaji titles.
-	AnilistSearch string
+	AnilistSearch string `json:"anilistSearch"`
 
 	// URL leading to manga page web page.
-	URL string
+	URL string `json:"url"`
 
 	// ID of the Manga. It must be unique withing its provider.
-	ID string
+	ID string `json:"id"`
 
 	// Cover is the cover image url.
-	Cover string
+	Cover string `json:"cover"`
 
 	// Banner is the banner image url.
-	Banner string
+	Banner string `json:"banner"`
 }
 
 type Manga interface {
@@ -44,7 +44,7 @@ type MangaWithSeriesJson interface {
 
 type VolumeInfo struct {
 	// Number of the volume. Must be greater than 0
-	Number int
+	Number int `json:"number"`
 }
 
 // Volume if a series is popular enough, its chapters
@@ -67,16 +67,16 @@ type Volume interface {
 
 type ChapterInfo struct {
 	// Title is the title of chapter
-	Title string
+	Title string `json:"title"`
 
 	// URL is the url leading to chapter web page.
-	URL string
+	URL string `json:"url"`
 
 	// Number of the chapter.
 	//
 	// Float type used in case of chapters that has numbers
 	// like this: 10.8 or 103.1.
-	Number float32
+	Number float32 `json:"number"`
 }
 
 // Chapter is what Volume consists of. Each chapter is about 24–40 pages.
