@@ -8,16 +8,16 @@ import (
 )
 
 const (
-	comicInfoXmlFilename = "ComicInfo.xml"
-	seriesJsonFilename   = "series.json"
-	coverJpgFilename     = "cover.jpg"
-	bannerJpgFilename    = "banner.jpg"
+	filenameComicInfoXML = "ComicInfo.xml"
+	filenameSeriesJSON   = "series.json"
+	filenameCoverJPG     = "cover.jpg"
+	filenameBannerJPG    = "banner.jpg"
 )
 
-// ComicInfoXml contains metadata information about a comic book.
+// ComicInfoXML contains metadata information about a comic book.
 // It is often used by comic book readers and management software
 // to organize and display information about comic books in a library or collection.
-type ComicInfoXml struct {
+type ComicInfoXML struct {
 	// Title of the book
 	Title string
 	// Series title of the series the book is part of.
@@ -116,8 +116,8 @@ type ComicInfoXml struct {
 	Notes string
 }
 
-func (c ComicInfoXml) wrapper(options ComicInfoXmlOptions) comicInfoXmlWrapper {
-	wrapper := comicInfoXmlWrapper{
+func (c ComicInfoXML) wrapper(options ComicInfoXMLOptions) comicInfoXMLWrapper {
+	wrapper := comicInfoXMLWrapper{
 		XmlnsXsd:   "http://www.w3.org/2001/XMLSchema",
 		XmlnsXsi:   "http://www.w3.org/2001/XMLSchema-instance",
 		Title:      c.Title,
@@ -169,7 +169,7 @@ func (c ComicInfoXml) wrapper(options ComicInfoXmlOptions) comicInfoXmlWrapper {
 	return wrapper
 }
 
-type comicInfoXmlWrapper struct {
+type comicInfoXMLWrapper struct {
 	// XMLName is a meta field that must be left unchanged
 	XMLName xml.Name `xml:"ComicInfo"`
 	// XmlnsXsi is a meta field that must be left unchanged
@@ -208,7 +208,7 @@ type comicInfoXmlWrapper struct {
 	Publisher       string  `xml:"Publisher,omitempty"`
 }
 
-func (c comicInfoXmlWrapper) marshal() ([]byte, error) {
+func (c comicInfoXMLWrapper) marshal() ([]byte, error) {
 	return xml.MarshalIndent(
 		c,
 		"",
@@ -216,9 +216,9 @@ func (c comicInfoXmlWrapper) marshal() ([]byte, error) {
 	)
 }
 
-// SeriesJson is similar to ComicInfoXml but designed for
+// SeriesJSON is similar to ComicInfoXML but designed for
 // the series as a whole rather than a single chapter
-type SeriesJson struct {
+type SeriesJSON struct {
 	Type                 string `json:"type"`
 	Name                 string `json:"name"`
 	DescriptionFormatted string `json:"descriptionFormatted"`
@@ -233,14 +233,14 @@ type SeriesJson struct {
 	PublicationRun       string `json:"publication_run"`
 }
 
-func (s SeriesJson) wrapper() seriesJsonWrapper {
-	return seriesJsonWrapper{Metadata: s}
+func (s SeriesJSON) wrapper() seriesJSONWrapper {
+	return seriesJSONWrapper{Metadata: s}
 }
 
-type seriesJsonWrapper struct {
-	Metadata SeriesJson `json:"metadata"`
+type seriesJSONWrapper struct {
+	Metadata SeriesJSON `json:"metadata"`
 }
 
-func (s seriesJsonWrapper) marshal() ([]byte, error) {
+func (s seriesJSONWrapper) marshal() ([]byte, error) {
 	return json.MarshalIndent(s, "", "  ")
 }

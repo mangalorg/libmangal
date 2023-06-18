@@ -15,6 +15,7 @@ type AnilistLoginCredentials struct {
 	Code   string
 }
 
+// Login will obtain Anilist token for API requests
 func (a *Anilist) Login(
 	ctx context.Context,
 	credentials AnilistLoginCredentials,

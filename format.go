@@ -1,6 +1,6 @@
 package libmangal
 
-//go:generate enumer -type=Format -trimprefix=Format
+//go:generate enumer -type=Format -trimprefix=Format -json -yaml -text
 
 // Format is the format for saving chapters
 type Format uint8
@@ -18,8 +18,13 @@ const (
 	FormatCBZ
 )
 
-var FormatExtensions = map[Format]string{
-	FormatPDF:    ".pdf",
-	FormatCBZ:    ".cbz",
-	FormatImages: "",
+func (f Format) Extension() string {
+	switch f {
+	case FormatPDF:
+		return ".pdf"
+	case FormatCBZ:
+		return ".cbz"
+	default:
+		return ""
+	}
 }

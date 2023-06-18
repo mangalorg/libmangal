@@ -62,7 +62,12 @@ type DownloadOptions struct {
 	ReadIncognito bool
 
 	// ComicInfoOptions options to use for ComicInfo.xml when WriteComicInfoXml is true
-	ComicInfoOptions ComicInfoXmlOptions
+	ComicInfoOptions ComicInfoXMLOptions
+
+	// ImageTransformer is applied for each image for the chapter.
+	//
+	// E.g. grayscale effect
+	ImageTransformer func([]byte) ([]byte, error)
 }
 
 // DefaultDownloadOptions constructs default DownloadOptions
@@ -80,7 +85,10 @@ func DefaultDownloadOptions() DownloadOptions {
 		WriteComicInfoXml:   false,
 		ReadAfter:           false,
 		ReadIncognito:       false,
-		ComicInfoOptions:    DefaultComicInfoOptions(),
+		ImageTransformer: func(img []byte) ([]byte, error) {
+			return img, nil
+		},
+		ComicInfoOptions: DefaultComicInfoOptions(),
 	}
 }
 
@@ -186,8 +194,8 @@ func DefaultClientOptions() ClientOptions {
 	}
 }
 
-// ComicInfoXmlOptions tweaks ComicInfoXml generation
-type ComicInfoXmlOptions struct {
+// ComicInfoXMLOptions tweaks ComicInfoXML generation
+type ComicInfoXMLOptions struct {
 	// AddDate whether to add series release date or not
 	AddDate bool
 
@@ -195,9 +203,9 @@ type ComicInfoXmlOptions struct {
 	AlternativeDate *Date
 }
 
-// DefaultComicInfoOptions constructs default ComicInfoXmlOptions
-func DefaultComicInfoOptions() ComicInfoXmlOptions {
-	return ComicInfoXmlOptions{
+// DefaultComicInfoOptions constructs default ComicInfoXMLOptions
+func DefaultComicInfoOptions() ComicInfoXMLOptions {
+	return ComicInfoXMLOptions{
 		AddDate: true,
 	}
 }

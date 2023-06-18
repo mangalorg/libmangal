@@ -33,7 +33,7 @@ func (c Client) removeChapter(chapterPath string) error {
 func (c Client) downloadCover(ctx context.Context, chapter Chapter, dir string) error {
 	c.Options.Log("Downloading cover")
 
-	coverPath := filepath.Join(dir, coverJpgFilename)
+	coverPath := filepath.Join(dir, filenameCoverJPG)
 
 	exists, err := afero.Exists(c.Options.FS, coverPath)
 	if err != nil {
@@ -88,7 +88,7 @@ func (c Client) downloadCover(ctx context.Context, chapter Chapter, dir string) 
 func (c Client) downloadBanner(ctx context.Context, chapter Chapter, dir string) error {
 	c.Options.Log("Downloading banner")
 
-	bannerPath := filepath.Join(dir, bannerJpgFilename)
+	bannerPath := filepath.Join(dir, filenameBannerJPG)
 
 	exists, err := afero.Exists(c.Options.FS, bannerPath)
 	if err != nil {
@@ -193,15 +193,15 @@ func (c Client) getBannerURL(ctx context.Context, chapter Chapter) (string, bool
 	return "", false, nil
 }
 
-// getSeriesJson gets SeriesJson from the chapter.
-// It tries to check if chapter manga implements MangaWithSeriesJson
+// getSeriesJSON gets SeriesJSON from the chapter.
+// It tries to check if chapter manga implements MangaWithSeriesJSON
 // in case of failure it will fetch manga from anilist.
-func (c Client) getSeriesJson(ctx context.Context, manga Manga) (SeriesJson, error) {
-	withSeriesJson, ok := manga.(MangaWithSeriesJson)
+func (c Client) getSeriesJSON(ctx context.Context, manga Manga) (SeriesJSON, error) {
+	withSeriesJson, ok := manga.(MangaWithSeriesJSON)
 	if ok {
-		seriesJson, err := withSeriesJson.SeriesJson()
+		seriesJson, err := withSeriesJson.SeriesJSON()
 		if err != nil {
-			return SeriesJson{}, err
+			return SeriesJSON{}, err
 		}
 
 		if ok {
@@ -211,20 +211,20 @@ func (c Client) getSeriesJson(ctx context.Context, manga Manga) (SeriesJson, err
 
 	withAnilist, ok, err := c.Options.Anilist.MakeMangaWithAnilist(ctx, manga)
 	if err != nil {
-		return SeriesJson{}, err
+		return SeriesJSON{}, err
 	}
 
 	if !ok {
-		return SeriesJson{}, errors.New("can't gen series json from manga")
+		return SeriesJSON{}, errors.New("can't gen series json from manga")
 	}
 
 	return withAnilist.SeriesJson(), nil
 }
 
-func (c Client) writeSeriesJson(ctx context.Context, chapter Chapter, dir string) error {
+func (c Client) writeSeriesJSON(ctx context.Context, chapter Chapter, dir string) error {
 	c.Options.Log("Writing series.json")
 
-	seriesJsonPath := filepath.Join(dir, seriesJsonFilename)
+	seriesJsonPath := filepath.Join(dir, filenameSeriesJSON)
 
 	exists, err := afero.Exists(c.Options.FS, seriesJsonPath)
 	if err != nil {
@@ -235,7 +235,7 @@ func (c Client) writeSeriesJson(ctx context.Context, chapter Chapter, dir string
 		return nil
 	}
 
-	seriesJson, err := c.getSeriesJson(ctx, chapter.Volume().Manga())
+	seriesJson, err := c.getSeriesJSON(ctx, chapter.Volume().Manga())
 	if err != nil {
 		return err
 	}
@@ -270,36 +270,62 @@ func (c Client) downloadChapter(
 		return err
 	}
 
+	for _, page := range downloadedPages {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		image, err := options.ImageTransformer(page.GetImage())
+		if err != nil {
+			return err
+		}
+
+		page.SetImage(image)
+	}
+
 	switch options.Format {
 	case FormatPDF:
-		err = c.SavePDF(downloadedPages, path)
+		file, err := c.Options.FS.Create(path)
+		if err != nil {
+			return err
+		}
+
+		defer file.Close()
+
+		return c.SavePDF(downloadedPages, file)
 	case FormatCBZ:
-		comicInfo, err := c.getComicInfoXml(ctx, chapter)
+		comicInfo, err := c.getComicInfoXML(ctx, chapter)
 		if err != nil && options.Strict {
 			return err
 		}
 
-		err = c.SaveCBZ(downloadedPages, path, comicInfo, options.ComicInfoOptions)
+		file, err := c.Options.FS.Create(path)
+		if err != nil {
+			return err
+		}
+
+		defer file.Close()
+
+		return c.SaveCBZ(downloadedPages, file, comicInfo, options.ComicInfoOptions)
 	case FormatImages:
-		err = c.SaveImages(downloadedPages, path)
+		return c.SaveImages(downloadedPages, path)
+	default:
+		// format validation was done before
+		panic("unreachable")
 	}
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
-func (c Client) getComicInfoXml(
+func (c Client) getComicInfoXML(
 	ctx context.Context,
 	chapter Chapter,
-) (ComicInfoXml, error) {
-	withComicInfo, ok := chapter.(ChapterWithComicInfoXml)
+) (ComicInfoXML, error) {
+	withComicInfo, ok := chapter.(ChapterWithComicInfoXML)
 	if ok {
-		comicInfo, err := withComicInfo.ComicInfoXml()
+		comicInfo, err := withComicInfo.ComicInfoXML()
 		if err != nil {
-			return ComicInfoXml{}, err
+			return ComicInfoXML{}, err
 		}
 
 		return comicInfo, nil
@@ -307,11 +333,11 @@ func (c Client) getComicInfoXml(
 
 	chapterWithAnilist, ok, err := c.Options.Anilist.MakeChapterWithAnilist(ctx, chapter)
 	if err != nil {
-		return ComicInfoXml{}, err
+		return ComicInfoXML{}, err
 	}
 
 	if !ok {
-		return ComicInfoXml{}, errors.New("can't get ComicInfo")
+		return ComicInfoXML{}, errors.New("can't get ComicInfo")
 	}
 
 	return chapterWithAnilist.ComicInfoXml(), nil
@@ -319,7 +345,6 @@ func (c Client) getComicInfoXml(
 
 func (c Client) readChapter(ctx context.Context, path string, chapter Chapter, incognito bool) error {
 	c.Options.Log("Opening chapter with the default app")
-	// TODO: history? anilist sync?
 
 	err := open.Run(path)
 	if err != nil {

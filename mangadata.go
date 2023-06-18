@@ -33,13 +33,13 @@ type Manga interface {
 	Info() MangaInfo
 }
 
-type MangaWithSeriesJson interface {
+type MangaWithSeriesJSON interface {
 	Manga
 
-	// SeriesJson will be used to write series.json file.
+	// SeriesJSON will be used to write series.json file.
 	// If ok is false then mangal will try to search on Anilist for the
 	// relevant manga.
-	SeriesJson() (SeriesJson, error)
+	SeriesJSON() (SeriesJSON, error)
 }
 
 type VolumeInfo struct {
@@ -92,13 +92,13 @@ type Chapter interface {
 	Volume() Volume
 }
 
-type ChapterWithComicInfoXml interface {
+type ChapterWithComicInfoXML interface {
 	Chapter
 
-	// ComicInfoXml will be used to write ComicInfo.xml file.
+	// ComicInfoXML will be used to write ComicInfo.xml file.
 	// If ok is false then mangal will try to search on Anilist for the
 	// relevant manga.
-	ComicInfoXml() (ComicInfoXml, error)
+	ComicInfoXML() (ComicInfoXML, error)
 }
 
 // Page is what Chapter consists of.
@@ -122,9 +122,12 @@ type Page interface {
 type PageWithImage interface {
 	Page
 
-	// Image gets the image contents. This operation should not perform any extra requests.
+	// GetImage gets the image contents. This operation should not perform any extra requests.
 	// Implementation should expose this method only if the Page already contains image contents.
-	Image() []byte
+	GetImage() []byte
+
+	// SetImage sets the image contents. This is used by DownloadOptions.ImageTransformer
+	SetImage(newImage []byte)
 }
 
 type pageWithImage struct {
@@ -132,6 +135,10 @@ type pageWithImage struct {
 	image []byte
 }
 
-func (p pageWithImage) Image() []byte {
+func (p *pageWithImage) GetImage() []byte {
 	return p.image
+}
+
+func (p *pageWithImage) SetImage(newImage []byte) {
+	p.image = newImage
 }

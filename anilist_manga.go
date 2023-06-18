@@ -105,7 +105,7 @@ type MangaWithAnilist struct {
 	Anilist AnilistManga
 }
 
-func (m *MangaWithAnilist) SeriesJson() SeriesJson {
+func (m *MangaWithAnilist) SeriesJson() SeriesJSON {
 	var status string
 	switch m.Anilist.Status {
 	case "FINISHED":
@@ -130,7 +130,7 @@ func (m *MangaWithAnilist) SeriesJson() SeriesJson {
 		m.Anilist.EndDate.Month, m.Anilist.EndDate.Year,
 	)
 
-	return SeriesJson{
+	return SeriesJSON{
 		Type:                 "comicSeries",
 		Name:                 m.Info().Title,
 		DescriptionFormatted: m.Anilist.Description,
@@ -151,7 +151,7 @@ type ChapterOfMangaWithAnilist struct {
 	MangaWithAnilist MangaWithAnilist
 }
 
-func (c ChapterOfMangaWithAnilist) ComicInfoXml() ComicInfoXml {
+func (c ChapterOfMangaWithAnilist) ComicInfoXml() ComicInfoXML {
 	var characters = make([]string, len(c.MangaWithAnilist.Anilist.Characters.Nodes))
 	for i, node := range c.MangaWithAnilist.Anilist.Characters.Nodes {
 		characters[i] = node.Name.Full
@@ -191,7 +191,7 @@ func (c ChapterOfMangaWithAnilist) ComicInfoXml() ComicInfoXml {
 	}
 
 	// TODO: fill missing
-	return ComicInfoXml{
+	return ComicInfoXML{
 		Title:           c.Info().Title,
 		Series:          c.Volume().Manga().Info().Title,
 		Number:          c.Info().Number,

@@ -136,7 +136,7 @@ func (c Client) DownloadChapter(
 	}
 
 	if options.WriteSeriesJson {
-		err := c.writeSeriesJson(ctx, chapter, options.Directory)
+		err := c.writeSeriesJSON(ctx, chapter, options.Directory)
 		if err != nil && options.Strict {
 			return "", MetadataError{err}
 		}
@@ -215,57 +215,35 @@ func (c Client) DownloadPagesInBatch(
 // SavePDF saves pages in FormatPDF
 func (c Client) SavePDF(
 	pages []PageWithImage,
-	path string,
+	out io.Writer,
 ) error {
 	c.Options.Log(fmt.Sprintf("Saving %d pages as PDF", len(pages)))
-
-	var file afero.File
-	file, err := c.Options.FS.Create(path)
-	if err != nil {
-		return err
-	}
-
-	defer file.Close()
 
 	// convert to readers
 	var images = make([]io.Reader, len(pages))
 	for i, page := range pages {
-		images[i] = bytes.NewReader(page.Image())
+		images[i] = bytes.NewReader(page.GetImage())
 	}
 
-	return api.ImportImages(nil, file, images, nil, nil)
+	return api.ImportImages(nil, out, images, nil, nil)
 }
 
 // SaveCBZ saves pages in FormatCBZ
 func (c Client) SaveCBZ(
 	pages []PageWithImage,
-	path string,
-	comicInfoXml ComicInfoXml,
-	options ComicInfoXmlOptions,
+	out io.Writer,
+	comicInfoXml ComicInfoXML,
+	options ComicInfoXMLOptions,
 ) error {
 	c.Options.Log(fmt.Sprintf("Saving %d pages as CBZ", len(pages)))
 
-	var file afero.File
-	file, err := c.Options.FS.Create(path)
-	if err != nil {
-		return err
-	}
-
-	defer file.Close()
-
-	zipWriter := zip.NewWriter(file)
+	zipWriter := zip.NewWriter(out)
 	defer zipWriter.Close()
 
 	for i, page := range pages {
 		c.Options.Log(fmt.Sprintf("Saving page #%d", i))
 
-		if page.Image == nil {
-			// this should not occur, but just for the safety
-			return fmt.Errorf("image %d is nil", i)
-		}
-
-		var writer io.Writer
-		writer, err = zipWriter.CreateHeader(&zip.FileHeader{
+		writer, err := zipWriter.CreateHeader(&zip.FileHeader{
 			Name:   fmt.Sprintf("%04d%s", i+1, page.GetExtension()),
 			Method: zip.Store,
 		})
@@ -274,7 +252,7 @@ func (c Client) SaveCBZ(
 			return err
 		}
 
-		_, err = writer.Write(page.Image())
+		_, err = writer.Write(page.GetImage())
 		if err != nil {
 			return err
 		}
@@ -288,7 +266,7 @@ func (c Client) SaveCBZ(
 	}
 
 	writer, err := zipWriter.CreateHeader(&zip.FileHeader{
-		Name:   comicInfoXmlFilename,
+		Name:   filenameComicInfoXML,
 		Method: zip.Store,
 	})
 	if err != nil {
@@ -306,10 +284,10 @@ func (c Client) SaveCBZ(
 // SaveImages saves pages in FormatImages
 func (c Client) SaveImages(
 	pages []PageWithImage,
-	path string,
+	dir string,
 ) error {
 	c.Options.Log(fmt.Sprintf("Saving %d pages as images dir", len(pages)))
-	err := c.Options.FS.MkdirAll(path, modeDir)
+	err := c.Options.FS.MkdirAll(dir, modeDir)
 	if err != nil {
 		return err
 	}
@@ -318,12 +296,12 @@ func (c Client) SaveImages(
 		c.Options.Log(fmt.Sprintf("Saving page #%d", i))
 
 		var file afero.File
-		file, err = c.Options.FS.Create(filepath.Join(path, fmt.Sprintf("%04d%s", i+1, page.GetExtension())))
+		file, err = c.Options.FS.Create(filepath.Join(dir, fmt.Sprintf("%04d%s", i+1, page.GetExtension())))
 		if err != nil {
 			return err
 		}
 
-		_, err = file.Write(page.Image())
+		_, err = file.Write(page.GetImage())
 		if err != nil {
 			return err
 		}
@@ -345,7 +323,7 @@ func (c Client) DownloadPage(ctx context.Context, page Page) (PageWithImage, err
 		return nil, err
 	}
 
-	return pageWithImage{
+	return &pageWithImage{
 		Page:  page,
 		image: image,
 	}, nil
@@ -379,10 +357,7 @@ func (c Client) ComputeFilenames(
 		chapter,
 	)
 
-	extension, ok := FormatExtensions[format]
-	if ok {
-		filenames.Chapter += extension
-	}
+	filenames.Chapter += format.Extension()
 
 	return filenames
 }
