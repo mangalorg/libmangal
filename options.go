@@ -61,8 +61,8 @@ type DownloadOptions struct {
 	// ReadIncognito won't sync Anilist reading history if ReadAfter is enabled.
 	ReadIncognito bool
 
-	// ComicInfoOptions options to use for ComicInfo.xml when WriteComicInfoXml is true
-	ComicInfoOptions ComicInfoXMLOptions
+	// ComicInfoXMLOptions options to use for ComicInfo.xml when WriteComicInfoXml is true
+	ComicInfoXMLOptions ComicInfoXMLOptions
 
 	// ImageTransformer is applied for each image for the chapter.
 	//
@@ -88,7 +88,7 @@ func DefaultDownloadOptions() DownloadOptions {
 		ImageTransformer: func(img []byte) ([]byte, error) {
 			return img, nil
 		},
-		ComicInfoOptions: DefaultComicInfoOptions(),
+		ComicInfoXMLOptions: DefaultComicInfoOptions(),
 	}
 }
 

@@ -1,55 +1,61 @@
 package libmangal
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/afero"
 	"io"
 	"math"
 	"net/http"
 	"path/filepath"
+	"time"
 )
 
 // removeChapter will remove chapter at given path.
 // Doesn't matter if it's a directory or a file.
 func (c Client) removeChapter(chapterPath string) error {
-	c.Options.Log("Removing " + chapterPath)
+	c.options.Log("Removing " + chapterPath)
 
-	isDir, err := afero.IsDir(c.Options.FS, chapterPath)
+	isDir, err := afero.IsDir(c.options.FS, chapterPath)
 	if err != nil {
 		return err
 	}
 
 	if isDir {
-		return c.Options.FS.RemoveAll(chapterPath)
+		return c.options.FS.RemoveAll(chapterPath)
 	}
 
-	return c.Options.FS.Remove(chapterPath)
+	return c.options.FS.Remove(chapterPath)
 }
 
 // downloadCover will download cover if it doesn't exist
-func (c Client) downloadCover(ctx context.Context, chapter Chapter, dir string) error {
-	c.Options.Log("Downloading cover")
+func (c Client) downloadCover(ctx context.Context, manga Manga, dir string) error {
+	c.options.Log("Downloading cover")
 
 	coverPath := filepath.Join(dir, filenameCoverJPG)
 
-	exists, err := afero.Exists(c.Options.FS, coverPath)
+	exists, err := afero.Exists(c.options.FS, coverPath)
 	if err != nil {
 		return err
 	}
 
 	if exists {
-		c.Options.Log("Cover is already downloaded, skipping")
+		c.options.Log("Cover is already downloaded, skipping")
 		return nil
 	}
 
-	coverURL, ok, err := c.getCoverURL(ctx, chapter)
+	coverURL, ok, err := c.getCoverURL(ctx, manga)
 	if err != nil {
 		return err
 	}
-	c.Options.Log(coverURL)
+	c.options.Log(coverURL)
 
 	if !ok {
 		return errors.New("cover url not found")
@@ -60,11 +66,11 @@ func (c Client) downloadCover(ctx context.Context, chapter Chapter, dir string) 
 		return err
 	}
 
-	request.Header.Set("Referer", chapter.Volume().Manga().Info().URL)
+	request.Header.Set("Referer", manga.Info().URL)
 	request.Header.Set("User-Agent", UserAgent)
 	request.Header.Set("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
 
-	response, err := c.Options.HTTPClient.Do(request)
+	response, err := c.options.HTTPClient.Do(request)
 	if err != nil {
 		return err
 	}
@@ -80,31 +86,31 @@ func (c Client) downloadCover(ctx context.Context, chapter Chapter, dir string) 
 		return err
 	}
 
-	c.Options.Log("Cover downloaded")
-	return afero.WriteFile(c.Options.FS, coverPath, cover, modeFile)
+	c.options.Log("Cover downloaded")
+	return afero.WriteFile(c.options.FS, coverPath, cover, modeFile)
 }
 
 // downloadBanner will download banner if it doesn't exist
-func (c Client) downloadBanner(ctx context.Context, chapter Chapter, dir string) error {
-	c.Options.Log("Downloading banner")
+func (c Client) downloadBanner(ctx context.Context, manga Manga, dir string) error {
+	c.options.Log("Downloading banner")
 
 	bannerPath := filepath.Join(dir, filenameBannerJPG)
 
-	exists, err := afero.Exists(c.Options.FS, bannerPath)
+	exists, err := afero.Exists(c.options.FS, bannerPath)
 	if err != nil {
 		return err
 	}
 
 	if exists {
-		c.Options.Log("Banner is already downloaded, skipping")
+		c.options.Log("Banner is already downloaded, skipping")
 		return nil
 	}
 
-	coverURL, ok, err := c.getBannerURL(ctx, chapter)
+	coverURL, ok, err := c.getBannerURL(ctx, manga)
 	if err != nil {
 		return err
 	}
-	c.Options.Log(coverURL)
+	c.options.Log(coverURL)
 
 	if !ok {
 		return errors.New("cover url not found")
@@ -115,11 +121,11 @@ func (c Client) downloadBanner(ctx context.Context, chapter Chapter, dir string)
 		return err
 	}
 
-	request.Header.Set("Referer", chapter.Volume().Manga().Info().URL)
+	request.Header.Set("Referer", manga.Info().URL)
 	request.Header.Set("User-Agent", UserAgent)
 	request.Header.Set("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
 
-	response, err := c.Options.HTTPClient.Do(request)
+	response, err := c.options.HTTPClient.Do(request)
 	if err != nil {
 		return err
 	}
@@ -135,19 +141,17 @@ func (c Client) downloadBanner(ctx context.Context, chapter Chapter, dir string)
 		return err
 	}
 
-	c.Options.Log("Banner downloaded")
-	return afero.WriteFile(c.Options.FS, bannerPath, cover, modeFile)
+	c.options.Log("Banner downloaded")
+	return afero.WriteFile(c.options.FS, bannerPath, cover, modeFile)
 }
 
-func (c Client) getCoverURL(ctx context.Context, chapter Chapter) (string, bool, error) {
-	manga := chapter.Volume().Manga()
-
+func (c Client) getCoverURL(ctx context.Context, manga Manga) (string, bool, error) {
 	coverURL := manga.Info().Cover
 	if coverURL != "" {
 		return coverURL, true, nil
 	}
 
-	mangaWithAnilist, ok, err := c.Options.Anilist.MakeMangaWithAnilist(ctx, manga)
+	mangaWithAnilist, ok, err := c.Anilist().MakeMangaWithAnilist(ctx, manga)
 	if err != nil {
 		return "", false, err
 	}
@@ -168,15 +172,13 @@ func (c Client) getCoverURL(ctx context.Context, chapter Chapter) (string, bool,
 	return "", false, nil
 }
 
-func (c Client) getBannerURL(ctx context.Context, chapter Chapter) (string, bool, error) {
-	manga := chapter.Volume().Manga()
-
+func (c Client) getBannerURL(ctx context.Context, manga Manga) (string, bool, error) {
 	bannerURL := manga.Info().Banner
 	if bannerURL != "" {
 		return bannerURL, true, nil
 	}
 
-	mangaWithAnilist, ok, err := c.Options.Anilist.MakeMangaWithAnilist(ctx, manga)
+	mangaWithAnilist, ok, err := c.Anilist().MakeMangaWithAnilist(ctx, manga)
 	if err != nil {
 		return "", false, err
 	}
@@ -197,55 +199,46 @@ func (c Client) getBannerURL(ctx context.Context, chapter Chapter) (string, bool
 // It tries to check if chapter manga implements MangaWithSeriesJSON
 // in case of failure it will fetch manga from anilist.
 func (c Client) getSeriesJSON(ctx context.Context, manga Manga) (SeriesJSON, error) {
-	withSeriesJson, ok := manga.(MangaWithSeriesJSON)
+	withSeriesJSON, ok := manga.(MangaWithSeriesJSON)
 	if ok {
-		seriesJson, err := withSeriesJson.SeriesJSON()
+		seriesJSON, err := withSeriesJSON.SeriesJSON()
 		if err != nil {
 			return SeriesJSON{}, err
 		}
 
 		if ok {
-			return seriesJson, nil
+			return seriesJSON, nil
 		}
 	}
 
-	withAnilist, ok, err := c.Options.Anilist.MakeMangaWithAnilist(ctx, manga)
+	withAnilist, ok, err := c.Anilist().MakeMangaWithAnilist(ctx, manga)
 	if err != nil {
 		return SeriesJSON{}, err
 	}
 
 	if !ok {
-		return SeriesJSON{}, errors.New("can't gen series json from manga")
+		return SeriesJSON{}, errors.New("can't gen series.json from manga")
 	}
 
-	return withAnilist.SeriesJson(), nil
+	return withAnilist.SeriesJSON(), nil
 }
 
-func (c Client) writeSeriesJSON(ctx context.Context, chapter Chapter, dir string) error {
-	c.Options.Log("Writing series.json")
+func (c Client) writeSeriesJSON(ctx context.Context, manga Manga, dir string) error {
+	c.options.Log(fmt.Sprintf("Writing %s", filenameSeriesJSON))
 
-	seriesJsonPath := filepath.Join(dir, filenameSeriesJSON)
+	seriesJSONPath := filepath.Join(dir, filenameSeriesJSON)
 
-	exists, err := afero.Exists(c.Options.FS, seriesJsonPath)
+	seriesJSON, err := c.getSeriesJSON(ctx, manga)
 	if err != nil {
 		return err
 	}
 
-	if exists {
-		return nil
-	}
-
-	seriesJson, err := c.getSeriesJSON(ctx, chapter.Volume().Manga())
+	marshalled, err := seriesJSON.wrapper().marshal()
 	if err != nil {
 		return err
 	}
 
-	marshalled, err := seriesJson.wrapper().marshal()
-	if err != nil {
-		return err
-	}
-
-	err = afero.WriteFile(c.Options.FS, seriesJsonPath, marshalled, modeFile)
+	err = afero.WriteFile(c.options.FS, seriesJSONPath, marshalled, modeFile)
 	if err != nil {
 		return err
 	}
@@ -260,7 +253,7 @@ func (c Client) downloadChapter(
 	path string,
 	options DownloadOptions,
 ) error {
-	pages, err := c.provider.ChapterPages(ctx, c.Options.Log, chapter)
+	pages, err := c.ChapterPages(ctx, chapter)
 	if err != nil {
 		return err
 	}
@@ -287,30 +280,69 @@ func (c Client) downloadChapter(
 
 	switch options.Format {
 	case FormatPDF:
-		file, err := c.Options.FS.Create(path)
+		file, err := c.options.FS.Create(path)
 		if err != nil {
 			return err
 		}
-
 		defer file.Close()
 
-		return c.SavePDF(downloadedPages, file)
+		return c.savePDF(downloadedPages, file)
+	case FormatTAR:
+		file, err := c.options.FS.Create(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		return c.saveTAR(downloadedPages, file)
+	case FormatTARGZ:
+		file, err := c.options.FS.Create(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		return c.saveTARGZ(downloadedPages, file)
+	case FormatZIP:
+		file, err := c.options.FS.Create(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		return c.saveZIP(downloadedPages, file)
 	case FormatCBZ:
-		comicInfo, err := c.getComicInfoXML(ctx, chapter)
+		comicInfoXML, err := c.getComicInfoXML(ctx, chapter)
 		if err != nil && options.Strict {
 			return err
 		}
 
-		file, err := c.Options.FS.Create(path)
+		file, err := c.options.FS.Create(path)
 		if err != nil {
 			return err
 		}
-
 		defer file.Close()
 
-		return c.SaveCBZ(downloadedPages, file, comicInfo, options.ComicInfoOptions)
+		return c.saveCBZ(downloadedPages, file, comicInfoXML, options.ComicInfoXMLOptions)
 	case FormatImages:
-		return c.SaveImages(downloadedPages, path)
+		if err := c.options.FS.MkdirAll(path, modeDir); err != nil {
+			return err
+		}
+
+		for i, page := range downloadedPages {
+			name := fmt.Sprintf("%04d%s", i+1, page.GetExtension())
+			err := afero.WriteFile(
+				c.options.FS,
+				filepath.Join(path, name),
+				page.GetImage(),
+				modeFile,
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
 	default:
 		// format validation was done before
 		panic("unreachable")
@@ -321,9 +353,9 @@ func (c Client) getComicInfoXML(
 	ctx context.Context,
 	chapter Chapter,
 ) (ComicInfoXML, error) {
-	withComicInfo, ok := chapter.(ChapterWithComicInfoXML)
+	withComicInfoXML, ok := chapter.(ChapterWithComicInfoXML)
 	if ok {
-		comicInfo, err := withComicInfo.ComicInfoXML()
+		comicInfo, err := withComicInfoXML.ComicInfoXML()
 		if err != nil {
 			return ComicInfoXML{}, err
 		}
@@ -331,7 +363,7 @@ func (c Client) getComicInfoXML(
 		return comicInfo, nil
 	}
 
-	chapterWithAnilist, ok, err := c.Options.Anilist.MakeChapterWithAnilist(ctx, chapter)
+	chapterWithAnilist, ok, err := c.Anilist().MakeChapterWithAnilist(ctx, chapter)
 	if err != nil {
 		return ComicInfoXML{}, err
 	}
@@ -340,18 +372,18 @@ func (c Client) getComicInfoXML(
 		return ComicInfoXML{}, errors.New("can't get ComicInfo")
 	}
 
-	return chapterWithAnilist.ComicInfoXml(), nil
+	return chapterWithAnilist.ComicInfoXML(), nil
 }
 
 func (c Client) readChapter(ctx context.Context, path string, chapter Chapter, incognito bool) error {
-	c.Options.Log("Opening chapter with the default app")
+	c.options.Log("Opening chapter with the default app")
 
 	err := open.Run(path)
 	if err != nil {
 		return err
 	}
 
-	if c.Options.Anilist.IsAuthorized() && !incognito {
+	if c.Anilist().IsAuthorized() && !incognito {
 		return c.markChapterAsRead(ctx, chapter)
 	}
 
@@ -365,7 +397,7 @@ func (c Client) markChapterAsRead(ctx context.Context, chapter Chapter) error {
 		titleToSearch = chapterMangaInfo.Title
 	}
 
-	manga, ok, err := c.Options.Anilist.FindClosestManga(ctx, titleToSearch)
+	manga, ok, err := c.Anilist().FindClosestManga(ctx, titleToSearch)
 	if err != nil {
 		return err
 	}
@@ -375,5 +407,136 @@ func (c Client) markChapterAsRead(ctx context.Context, chapter Chapter) error {
 	}
 
 	progress := int(math.Trunc(float64(chapter.Info().Number)))
-	return c.Options.Anilist.SetProgress(ctx, manga.ID, progress)
+	return c.Anilist().SetProgress(ctx, manga.ID, progress)
+}
+
+// savePDF saves pages in FormatPDF
+func (c Client) savePDF(
+	pages []PageWithImage,
+	out io.Writer,
+) error {
+	c.options.Log(fmt.Sprintf("Saving %d pages as PDF", len(pages)))
+
+	// convert to readers
+	var images = make([]io.Reader, len(pages))
+	for i, page := range pages {
+		images[i] = bytes.NewReader(page.GetImage())
+	}
+
+	return api.ImportImages(nil, out, images, nil, nil)
+}
+
+// saveCBZ saves pages in FormatCBZ
+func (c Client) saveCBZ(
+	pages []PageWithImage,
+	out io.Writer,
+	comicInfoXml ComicInfoXML,
+	options ComicInfoXMLOptions,
+) error {
+	c.options.Log(fmt.Sprintf("Saving %d pages as CBZ", len(pages)))
+
+	zipWriter := zip.NewWriter(out)
+	defer zipWriter.Close()
+
+	for i, page := range pages {
+		writer, err := zipWriter.CreateHeader(&zip.FileHeader{
+			Name:   fmt.Sprintf("%04d%s", i+1, page.GetExtension()),
+			Method: zip.Store,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		_, err = writer.Write(page.GetImage())
+		if err != nil {
+			return err
+		}
+	}
+
+	wrapper := comicInfoXml.wrapper(options)
+	wrapper.PageCount = len(pages)
+	marshalled, err := wrapper.marshal()
+	if err != nil {
+		return err
+	}
+
+	writer, err := zipWriter.CreateHeader(&zip.FileHeader{
+		Name:   filenameComicInfoXML,
+		Method: zip.Store,
+	})
+	if err != nil {
+		return err
+	}
+
+	_, err = writer.Write(marshalled)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c Client) saveTAR(
+	pages []PageWithImage,
+	out io.Writer,
+) error {
+	tarWriter := tar.NewWriter(out)
+	defer tarWriter.Close()
+
+	for i, page := range pages {
+		image := page.GetImage()
+		err := tarWriter.WriteHeader(&tar.Header{
+			Name:    fmt.Sprintf("%04d%s", i+1, page.GetExtension()),
+			Size:    int64(len(image)),
+			Mode:    0644,
+			ModTime: time.Now(),
+		})
+		if err != nil {
+			return err
+		}
+
+		_, err = tarWriter.Write(image)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c Client) saveTARGZ(
+	pages []PageWithImage,
+	out io.Writer,
+) error {
+	gzipWriter := gzip.NewWriter(out)
+	defer gzipWriter.Close()
+
+	return c.saveTAR(pages, gzipWriter)
+}
+
+func (c Client) saveZIP(
+	pages []PageWithImage,
+	out io.Writer,
+) error {
+	zipWriter := zip.NewWriter(out)
+	defer zipWriter.Close()
+
+	for i, page := range pages {
+		writer, err := zipWriter.CreateHeader(&zip.FileHeader{
+			Name:   fmt.Sprintf("%04d%s", i+1, page.GetExtension()),
+			Method: zip.Store,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		_, err = writer.Write(page.GetImage())
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

@@ -21,6 +21,8 @@ Such as a CLI, a web app, a mobile app, gRPC server, etc. *Anything!*
 - Different export formats
   - PDF - chapters stored a single PDF file
   - CBZ - Comic Book ZIP format
+  - TAR - TAR archive
+  - ZIP - ZIP archive
   - Images - a plain directory of images
 - Monolith - no runtime dependencies. 
 - Generates metadata files
@@ -46,9 +48,13 @@ Such as a CLI, a web app, a mobile app, gRPC server, etc. *Anything!*
 ## Install
 
 ```bash
-go get github.com/mangalorg/libmangal
+go get github.com/mangalorg/libmangal@latest
 ```
 
 ## Providers
 
 - [luaprovider](https://github.com/mangalorg/luaprovider) - Generic provider based on Lua scripts
+
+## Apps using libmangal
+
+- [mangalcli](https://github.com/mangalorg/mangalcli) - Advanced Manga Downloader with Anilist integration, metadata generation and Lua extensions.
