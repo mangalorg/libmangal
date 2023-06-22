@@ -16,6 +16,8 @@
         <method importPath="github.com/spf13/afero" receiver="File" name="Close" />
         <method importPath="io" receiver="ReadCloser" name="Close" />
         <method importPath="archive/zip" receiver="*Writer" name="Close" />
+        <method importPath="compress/gzip" receiver="*Writer" name="Close" />
+        <method importPath="archive/tar" receiver="*Writer" name="Close" />
       </methods>
     </inspection_tool>
   </profile>

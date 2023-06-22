@@ -30,7 +30,9 @@ type DownloadOptions struct {
 	// won't be downloaded
 	Strict bool
 
-	// SkipIfExists will skip downloading chapter if its already downloaded (exists)
+	// SkipIfExists will skip downloading chapter if its already downloaded (exists at path)
+	//
+	// However, metadata will still be created if needed.
 	SkipIfExists bool
 
 	// DownloadMangaCover or not. Will not download cover again if its already downloaded.

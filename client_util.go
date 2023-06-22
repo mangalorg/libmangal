@@ -18,6 +18,8 @@ import (
 	"time"
 )
 
+type pathExistsFunc func(string) (bool, error)
+
 // removeChapter will remove chapter at given path.
 // Doesn't matter if it's a directory or a file.
 func (c Client) removeChapter(chapterPath string) error {
@@ -35,21 +37,37 @@ func (c Client) removeChapter(chapterPath string) error {
 	return c.options.FS.Remove(chapterPath)
 }
 
-// downloadCover will download cover if it doesn't exist
-func (c Client) downloadCover(ctx context.Context, manga Manga, dir string) error {
-	c.options.Log("Downloading cover")
-
-	coverPath := filepath.Join(dir, filenameCoverJPG)
-
-	exists, err := afero.Exists(c.options.FS, coverPath)
+// downloadMangaImage will download image related to manga.
+// For example this can be either banner image or cover image.
+// Manga is required to set Referer header.
+func (c Client) downloadMangaImage(ctx context.Context, manga Manga, URL string, out io.Writer) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, URL, nil)
 	if err != nil {
 		return err
 	}
 
-	if exists {
-		c.options.Log("Cover is already downloaded, skipping")
-		return nil
+	request.Header.Set("Referer", manga.Info().URL)
+	request.Header.Set("User-Agent", UserAgent)
+	request.Header.Set("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
+
+	response, err := c.options.HTTPClient.Do(request)
+	if err != nil {
+		return err
 	}
+
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected http status: %s", response.Status)
+	}
+
+	_, err = io.Copy(out, response.Body)
+	return err
+}
+
+// downloadCover will download cover if it doesn't exist
+func (c Client) downloadCover(ctx context.Context, manga Manga, out io.Writer) error {
+	c.options.Log("Downloading cover")
 
 	coverURL, ok, err := c.getCoverURL(ctx, manga)
 	if err != nil {
@@ -61,88 +79,24 @@ func (c Client) downloadCover(ctx context.Context, manga Manga, dir string) erro
 		return errors.New("cover url not found")
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, coverURL, nil)
-	if err != nil {
-		return err
-	}
-
-	request.Header.Set("Referer", manga.Info().URL)
-	request.Header.Set("User-Agent", UserAgent)
-	request.Header.Set("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
-
-	response, err := c.options.HTTPClient.Do(request)
-	if err != nil {
-		return err
-	}
-
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected http status: %s", response.Status)
-	}
-
-	cover, err := io.ReadAll(response.Body)
-	if err != nil {
-		return err
-	}
-
-	c.options.Log("Cover downloaded")
-	return afero.WriteFile(c.options.FS, coverPath, cover, modeFile)
+	return c.downloadMangaImage(ctx, manga, coverURL, out)
 }
 
 // downloadBanner will download banner if it doesn't exist
-func (c Client) downloadBanner(ctx context.Context, manga Manga, dir string) error {
+func (c Client) downloadBanner(ctx context.Context, manga Manga, out io.Writer) error {
 	c.options.Log("Downloading banner")
 
-	bannerPath := filepath.Join(dir, filenameBannerJPG)
-
-	exists, err := afero.Exists(c.options.FS, bannerPath)
+	bannerURL, ok, err := c.getBannerURL(ctx, manga)
 	if err != nil {
 		return err
 	}
-
-	if exists {
-		c.options.Log("Banner is already downloaded, skipping")
-		return nil
-	}
-
-	coverURL, ok, err := c.getBannerURL(ctx, manga)
-	if err != nil {
-		return err
-	}
-	c.options.Log(coverURL)
+	c.options.Log(bannerURL)
 
 	if !ok {
 		return errors.New("cover url not found")
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, coverURL, nil)
-	if err != nil {
-		return err
-	}
-
-	request.Header.Set("Referer", manga.Info().URL)
-	request.Header.Set("User-Agent", UserAgent)
-	request.Header.Set("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
-
-	response, err := c.options.HTTPClient.Do(request)
-	if err != nil {
-		return err
-	}
-
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected http status: %s", response.Status)
-	}
-
-	cover, err := io.ReadAll(response.Body)
-	if err != nil {
-		return err
-	}
-
-	c.options.Log("Banner downloaded")
-	return afero.WriteFile(c.options.FS, bannerPath, cover, modeFile)
+	return c.downloadMangaImage(ctx, manga, bannerURL, out)
 }
 
 func (c Client) getCoverURL(ctx context.Context, manga Manga) (string, bool, error) {
@@ -223,10 +177,8 @@ func (c Client) getSeriesJSON(ctx context.Context, manga Manga) (SeriesJSON, err
 	return withAnilist.SeriesJSON(), nil
 }
 
-func (c Client) writeSeriesJSON(ctx context.Context, manga Manga, dir string) error {
+func (c Client) writeSeriesJSON(ctx context.Context, manga Manga, out io.Writer) error {
 	c.options.Log(fmt.Sprintf("Writing %s", filenameSeriesJSON))
-
-	seriesJSONPath := filepath.Join(dir, filenameSeriesJSON)
 
 	seriesJSON, err := c.getSeriesJSON(ctx, manga)
 	if err != nil {
@@ -238,12 +190,8 @@ func (c Client) writeSeriesJSON(ctx context.Context, manga Manga, dir string) er
 		return err
 	}
 
-	err = afero.WriteFile(c.options.FS, seriesJSONPath, marshalled, modeFile)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err = out.Write(marshalled)
+	return err
 }
 
 // downloadChapter is a helper function for DownloadChapter
@@ -539,4 +487,114 @@ func (c Client) saveZIP(
 	}
 
 	return nil
+}
+
+func (c Client) downloadChapterWithMetadata(
+	ctx context.Context,
+	chapter Chapter,
+	options DownloadOptions,
+	existsFunc pathExistsFunc,
+) (string, error) {
+	directory := options.Directory
+
+	var (
+		seriesJSONDir = directory
+		coverDir      = directory
+		bannerDir     = directory
+	)
+
+	if options.CreateMangaDir {
+		directory = filepath.Join(directory, c.ComputeMangaFilename(chapter.Volume().Manga()))
+		seriesJSONDir = directory
+		coverDir = directory
+		bannerDir = directory
+	}
+
+	if options.CreateVolumeDir {
+		directory = filepath.Join(directory, c.ComputeVolumeFilename(chapter.Volume()))
+	}
+
+	err := c.options.FS.MkdirAll(directory, modeDir)
+	if err != nil {
+		return "", err
+	}
+
+	chapterPath := filepath.Join(directory, c.ComputeChapterFilename(chapter, options.Format))
+
+	chapterExists, err := existsFunc(chapterPath)
+	if err != nil {
+		return "", err
+	}
+
+	if !chapterExists || !options.SkipIfExists {
+		err = c.downloadChapter(ctx, chapter, chapterPath, options)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	if options.WriteSeriesJson {
+		path := filepath.Join(seriesJSONDir, filenameSeriesJSON)
+		exists, err := existsFunc(path)
+		if err != nil {
+			return "", err
+		}
+
+		if !exists {
+			file, err := c.options.FS.Create(path)
+			if err != nil {
+				return "", err
+			}
+			defer file.Close()
+
+			err = c.writeSeriesJSON(ctx, chapter.Volume().Manga(), file)
+			if err != nil && options.Strict {
+				return "", MetadataError{err}
+			}
+		}
+	}
+
+	if options.DownloadMangaCover {
+		path := filepath.Join(coverDir, filenameCoverJPG)
+		exists, err := existsFunc(path)
+		if err != nil {
+			return "", err
+		}
+
+		if !exists {
+			file, err := c.options.FS.Create(path)
+			if err != nil {
+				return "", err
+			}
+			defer file.Close()
+
+			err = c.downloadCover(ctx, chapter.Volume().Manga(), file)
+			if err != nil && options.Strict {
+				return "", MetadataError{err}
+			}
+		}
+	}
+
+	if options.DownloadMangaBanner {
+		path := filepath.Join(bannerDir, filenameBannerJPG)
+		exists, err := existsFunc(path)
+		if err != nil {
+			return "", err
+		}
+
+		file, err := c.options.FS.Create(path)
+		if err != nil {
+			return "", err
+		}
+		defer file.Close()
+
+		if !exists {
+			err = c.downloadBanner(ctx, chapter.Volume().Manga(), file)
+			if err != nil && options.Strict {
+				return "", MetadataError{err}
+			}
+		}
+	}
+
+	return chapterPath, nil
 }

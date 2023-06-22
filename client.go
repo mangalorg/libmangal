@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
-	"path/filepath"
 )
 
 // NewClient creates a new client from ProviderLoader.
@@ -93,7 +92,6 @@ func (c Client) DownloadChapter(
 
 	tmpClient.options.FS = afero.NewMemMapFs()
 
-	// check if exists
 	path, err := tmpClient.downloadChapterWithMetadata(ctx, chapter, options, func(path string) (bool, error) {
 		return afero.Exists(c.options.FS, path)
 	})
@@ -108,75 +106,11 @@ func (c Client) DownloadChapter(
 		return "", err
 	}
 
+	if options.ReadAfter {
+		return path, c.readChapter(ctx, path, chapter, options.ReadIncognito)
+	}
+
 	return path, nil
-}
-
-func (c Client) downloadChapterWithMetadata(
-	ctx context.Context,
-	chapter Chapter,
-	options DownloadOptions,
-	pathExists func(string) (bool, error),
-) (string, error) {
-	directory := options.Directory
-
-	var (
-		seriesJSONDir = directory
-		coverDir      = directory
-		bannerDir     = directory
-	)
-
-	if options.CreateMangaDir {
-		directory = filepath.Join(directory, c.ComputeMangaFilename(chapter.Volume().Manga()))
-		seriesJSONDir = directory
-		coverDir = directory
-		bannerDir = directory
-	}
-
-	if options.CreateVolumeDir {
-		directory = filepath.Join(directory, c.ComputeVolumeFilename(chapter.Volume()))
-	}
-
-	err := c.options.FS.MkdirAll(directory, modeDir)
-	if err != nil {
-		return "", err
-	}
-
-	chapterPath := filepath.Join(directory, c.ComputeChapterFilename(chapter, options.Format))
-
-	chapterExists, err := pathExists(chapterPath)
-	if err != nil {
-		return "", err
-	}
-
-	if !chapterExists || !options.SkipIfExists {
-		err = c.downloadChapter(ctx, chapter, chapterPath, options)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	if options.WriteSeriesJson {
-		err := c.writeSeriesJSON(ctx, chapter.Volume().Manga(), seriesJSONDir)
-		if err != nil && options.Strict {
-			return "", MetadataError{err}
-		}
-	}
-
-	if options.DownloadMangaCover {
-		err := c.downloadCover(ctx, chapter.Volume().Manga(), coverDir)
-		if err != nil && options.Strict {
-			return "", MetadataError{err}
-		}
-	}
-
-	if options.DownloadMangaBanner {
-		err := c.downloadBanner(ctx, chapter.Volume().Manga(), bannerDir)
-		if err != nil && options.Strict {
-			return "", MetadataError{err}
-		}
-	}
-
-	return chapterPath, nil
 }
 
 // DownloadPagesInBatch downloads multiple pages in batch
