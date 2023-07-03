@@ -22,7 +22,7 @@ type pathExistsFunc func(string) (bool, error)
 
 // removeChapter will remove chapter at given path.
 // Doesn't matter if it's a directory or a file.
-func (c Client) removeChapter(chapterPath string) error {
+func (c *Client) removeChapter(chapterPath string) error {
 	c.options.Log("Removing " + chapterPath)
 
 	isDir, err := afero.IsDir(c.options.FS, chapterPath)
@@ -40,7 +40,7 @@ func (c Client) removeChapter(chapterPath string) error {
 // downloadMangaImage will download image related to manga.
 // For example this can be either banner image or cover image.
 // Manga is required to set Referer header.
-func (c Client) downloadMangaImage(ctx context.Context, manga Manga, URL string, out io.Writer) error {
+func (c *Client) downloadMangaImage(ctx context.Context, manga Manga, URL string, out io.Writer) error {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, URL, nil)
 	if err != nil {
 		return err
@@ -66,7 +66,7 @@ func (c Client) downloadMangaImage(ctx context.Context, manga Manga, URL string,
 }
 
 // downloadCover will download cover if it doesn't exist
-func (c Client) downloadCover(ctx context.Context, manga Manga, out io.Writer) error {
+func (c *Client) downloadCover(ctx context.Context, manga Manga, out io.Writer) error {
 	c.options.Log("Downloading cover")
 
 	coverURL, ok, err := c.getCoverURL(ctx, manga)
@@ -83,7 +83,7 @@ func (c Client) downloadCover(ctx context.Context, manga Manga, out io.Writer) e
 }
 
 // downloadBanner will download banner if it doesn't exist
-func (c Client) downloadBanner(ctx context.Context, manga Manga, out io.Writer) error {
+func (c *Client) downloadBanner(ctx context.Context, manga Manga, out io.Writer) error {
 	c.options.Log("Downloading banner")
 
 	bannerURL, ok, err := c.getBannerURL(ctx, manga)
@@ -99,7 +99,7 @@ func (c Client) downloadBanner(ctx context.Context, manga Manga, out io.Writer) 
 	return c.downloadMangaImage(ctx, manga, bannerURL, out)
 }
 
-func (c Client) getCoverURL(ctx context.Context, manga Manga) (string, bool, error) {
+func (c *Client) getCoverURL(ctx context.Context, manga Manga) (string, bool, error) {
 	coverURL := manga.Info().Cover
 	if coverURL != "" {
 		return coverURL, true, nil
@@ -126,7 +126,7 @@ func (c Client) getCoverURL(ctx context.Context, manga Manga) (string, bool, err
 	return "", false, nil
 }
 
-func (c Client) getBannerURL(ctx context.Context, manga Manga) (string, bool, error) {
+func (c *Client) getBannerURL(ctx context.Context, manga Manga) (string, bool, error) {
 	bannerURL := manga.Info().Banner
 	if bannerURL != "" {
 		return bannerURL, true, nil
@@ -152,7 +152,7 @@ func (c Client) getBannerURL(ctx context.Context, manga Manga) (string, bool, er
 // getSeriesJSON gets SeriesJSON from the chapter.
 // It tries to check if chapter manga implements MangaWithSeriesJSON
 // in case of failure it will fetch manga from anilist.
-func (c Client) getSeriesJSON(ctx context.Context, manga Manga) (SeriesJSON, error) {
+func (c *Client) getSeriesJSON(ctx context.Context, manga Manga) (SeriesJSON, error) {
 	withSeriesJSON, ok := manga.(MangaWithSeriesJSON)
 	if ok {
 		seriesJSON, err := withSeriesJSON.SeriesJSON()
@@ -177,7 +177,7 @@ func (c Client) getSeriesJSON(ctx context.Context, manga Manga) (SeriesJSON, err
 	return withAnilist.SeriesJSON(), nil
 }
 
-func (c Client) writeSeriesJSON(ctx context.Context, manga Manga, out io.Writer) error {
+func (c *Client) writeSeriesJSON(ctx context.Context, manga Manga, out io.Writer) error {
 	c.options.Log(fmt.Sprintf("Writing %s", filenameSeriesJSON))
 
 	seriesJSON, err := c.getSeriesJSON(ctx, manga)
@@ -195,7 +195,7 @@ func (c Client) writeSeriesJSON(ctx context.Context, manga Manga, out io.Writer)
 }
 
 // downloadChapter is a helper function for DownloadChapter
-func (c Client) downloadChapter(
+func (c *Client) downloadChapter(
 	ctx context.Context,
 	chapter Chapter,
 	path string,
@@ -297,7 +297,7 @@ func (c Client) downloadChapter(
 	}
 }
 
-func (c Client) getComicInfoXML(
+func (c *Client) getComicInfoXML(
 	ctx context.Context,
 	chapter Chapter,
 ) (ComicInfoXML, error) {
@@ -323,7 +323,7 @@ func (c Client) getComicInfoXML(
 	return chapterWithAnilist.ComicInfoXML(), nil
 }
 
-func (c Client) readChapter(ctx context.Context, path string, chapter Chapter, incognito bool) error {
+func (c *Client) readChapter(ctx context.Context, path string, chapter Chapter, incognito bool) error {
 	c.options.Log("Opening chapter with the default app")
 
 	err := open.Run(path)
@@ -338,7 +338,7 @@ func (c Client) readChapter(ctx context.Context, path string, chapter Chapter, i
 	return nil
 }
 
-func (c Client) markChapterAsRead(ctx context.Context, chapter Chapter) error {
+func (c *Client) markChapterAsRead(ctx context.Context, chapter Chapter) error {
 	chapterMangaInfo := chapter.Volume().Manga().Info()
 	titleToSearch := chapterMangaInfo.AnilistSearch
 	if titleToSearch == "" {
@@ -359,7 +359,7 @@ func (c Client) markChapterAsRead(ctx context.Context, chapter Chapter) error {
 }
 
 // savePDF saves pages in FormatPDF
-func (c Client) savePDF(
+func (c *Client) savePDF(
 	pages []PageWithImage,
 	out io.Writer,
 ) error {
@@ -375,7 +375,7 @@ func (c Client) savePDF(
 }
 
 // saveCBZ saves pages in FormatCBZ
-func (c Client) saveCBZ(
+func (c *Client) saveCBZ(
 	pages []PageWithImage,
 	out io.Writer,
 	comicInfoXml ComicInfoXML,
@@ -425,7 +425,7 @@ func (c Client) saveCBZ(
 	return nil
 }
 
-func (c Client) saveTAR(
+func (c *Client) saveTAR(
 	pages []PageWithImage,
 	out io.Writer,
 ) error {
@@ -453,7 +453,7 @@ func (c Client) saveTAR(
 	return nil
 }
 
-func (c Client) saveTARGZ(
+func (c *Client) saveTARGZ(
 	pages []PageWithImage,
 	out io.Writer,
 ) error {
@@ -463,7 +463,7 @@ func (c Client) saveTARGZ(
 	return c.saveTAR(pages, gzipWriter)
 }
 
-func (c Client) saveZIP(
+func (c *Client) saveZIP(
 	pages []PageWithImage,
 	out io.Writer,
 ) error {
@@ -489,7 +489,7 @@ func (c Client) saveZIP(
 	return nil
 }
 
-func (c Client) downloadChapterWithMetadata(
+func (c *Client) downloadChapterWithMetadata(
 	ctx context.Context,
 	chapter Chapter,
 	options DownloadOptions,

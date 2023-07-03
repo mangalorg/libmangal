@@ -14,17 +14,17 @@ func NewClient(
 	ctx context.Context,
 	loader ProviderLoader,
 	options ClientOptions,
-) (Client, error) {
+) (*Client, error) {
 	if err := loader.Info().Validate(); err != nil {
-		return Client{}, err
+		return nil, err
 	}
 
 	provider, err := loader.Load(ctx)
 	if err != nil {
-		return Client{}, err
+		return nil, err
 	}
 
-	return Client{
+	return &Client{
 		provider: provider,
 		options:  options,
 	}, nil
@@ -37,40 +37,44 @@ type Client struct {
 	options  ClientOptions
 }
 
-func (c Client) FS() afero.Fs {
+func (c *Client) FS() afero.Fs {
 	return c.options.FS
 }
 
-func (c Client) Anilist() *Anilist {
+func (c *Client) Anilist() *Anilist {
 	return c.options.Anilist
 }
 
+func (c *Client) SetLogFunc(log LogFunc) {
+	c.options.Log = log
+}
+
 // SearchMangas searches for mangas with the given query
-func (c Client) SearchMangas(ctx context.Context, query string) ([]Manga, error) {
+func (c *Client) SearchMangas(ctx context.Context, query string) ([]Manga, error) {
 	return c.provider.SearchMangas(ctx, c.options.Log, query)
 }
 
 // MangaVolumes gets chapters of the given manga
-func (c Client) MangaVolumes(ctx context.Context, manga Manga) ([]Volume, error) {
+func (c *Client) MangaVolumes(ctx context.Context, manga Manga) ([]Volume, error) {
 	return c.provider.MangaVolumes(ctx, c.options.Log, manga)
 }
 
 // VolumeChapters gets chapters of the given manga
-func (c Client) VolumeChapters(ctx context.Context, volume Volume) ([]Chapter, error) {
+func (c *Client) VolumeChapters(ctx context.Context, volume Volume) ([]Chapter, error) {
 	return c.provider.VolumeChapters(ctx, c.options.Log, volume)
 }
 
 // ChapterPages gets pages of the given chapter
-func (c Client) ChapterPages(ctx context.Context, chapter Chapter) ([]Page, error) {
+func (c *Client) ChapterPages(ctx context.Context, chapter Chapter) ([]Page, error) {
 	return c.provider.ChapterPages(ctx, c.options.Log, chapter)
 }
 
-func (c Client) String() string {
+func (c *Client) String() string {
 	return c.provider.Info().Name
 }
 
 // Info returns info about provider
-func (c Client) Info() ProviderInfo {
+func (c *Client) Info() ProviderInfo {
 	return c.provider.Info()
 }
 
@@ -78,7 +82,7 @@ func (c Client) Info() ProviderInfo {
 // directory in the given format.
 //
 // It will return resulting chapter path joined with DownloadOptions.Directory
-func (c Client) DownloadChapter(
+func (c *Client) DownloadChapter(
 	ctx context.Context,
 	chapter Chapter,
 	options DownloadOptions,
@@ -117,7 +121,7 @@ func (c Client) DownloadChapter(
 // by calling DownloadPage for each page in a separate goroutines.
 // If any of the pages fails to download it will stop downloading other pages
 // and return error immediately
-func (c Client) DownloadPagesInBatch(
+func (c *Client) DownloadPagesInBatch(
 	ctx context.Context,
 	pages []Page,
 ) ([]PageWithImage, error) {
@@ -153,7 +157,7 @@ func (c Client) DownloadPagesInBatch(
 }
 
 // DownloadPage downloads a page contents (image)
-func (c Client) DownloadPage(ctx context.Context, page Page) (PageWithImage, error) {
+func (c *Client) DownloadPage(ctx context.Context, page Page) (PageWithImage, error) {
 	if withImage, ok := page.(PageWithImage); ok {
 		return withImage, nil
 	}
@@ -169,14 +173,14 @@ func (c Client) DownloadPage(ctx context.Context, page Page) (PageWithImage, err
 	}, nil
 }
 
-func (c Client) ComputeMangaFilename(manga Manga) string {
+func (c *Client) ComputeMangaFilename(manga Manga) string {
 	return c.options.MangaNameTemplate(c.String(), manga)
 }
 
-func (c Client) ComputeVolumeFilename(volume Volume) string {
+func (c *Client) ComputeVolumeFilename(volume Volume) string {
 	return c.options.VolumeNameTemplate(c.String(), volume)
 }
 
-func (c Client) ComputeChapterFilename(chapter Chapter, format Format) string {
+func (c *Client) ComputeChapterFilename(chapter Chapter, format Format) string {
 	return c.options.ChapterNameTemplate(c.String(), chapter) + format.Extension()
 }
