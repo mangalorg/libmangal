@@ -15,8 +15,12 @@ type AnilistLoginCredentials struct {
 	Code   string
 }
 
-// Login will obtain Anilist token for API requests
-func (a *Anilist) Login(
+// anilistStoreAccessCodeStoreKey is the key used to store Anilist access code.
+// It's needed, since the KV interface always expects a key to be passed.
+const anilistStoreAccessCodeStoreKey = "hi"
+
+// Authorize will obtain Anilist token for API requests
+func (a *Anilist) Authorize(
 	ctx context.Context,
 	credentials AnilistLoginCredentials,
 ) error {
@@ -35,15 +39,17 @@ func (a *Anilist) Login(
 		}
 	}
 
-	var buffer = bytes.NewBuffer(nil)
-
-	err := json.NewEncoder(buffer).Encode(map[string]string{
+	body, err := json.Marshal(map[string]string{
 		"client_id":     credentials.ID,
 		"client_secret": credentials.Secret,
 		"code":          credentials.Code,
 		"grant_type":    "authorization_code",
 		"redirect_uri":  "https://anilist.co/api/v2/oauth/pin",
 	})
+	if err != nil {
+		return err
+	}
+
 	if err != nil {
 		return AnilistError{err}
 	}
@@ -52,7 +58,7 @@ func (a *Anilist) Login(
 		ctx,
 		http.MethodPost,
 		"https://anilist.co/api/v2/oauth/token",
-		buffer,
+		bytes.NewBuffer(body),
 	)
 	if err != nil {
 		return AnilistError{err}
@@ -78,6 +84,10 @@ func (a *Anilist) Login(
 	err = json.NewDecoder(response.Body).Decode(&authResponse)
 	if err != nil {
 		return AnilistError{err}
+	}
+
+	if err := a.options.AccessTokenStore.Set(anilistStoreAccessCodeStoreKey, authResponse.AccessToken); err != nil {
+		return err
 	}
 
 	a.accessToken = authResponse.AccessToken

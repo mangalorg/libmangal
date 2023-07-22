@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const anilistUrlApi = "https://graphql.anilist.co"
+const anilistAPIURL = "https://graphql.anilist.co"
 
 type anilistRequestBody struct {
 	Query     string         `json:"query"`
@@ -32,7 +32,16 @@ type Anilist struct {
 
 // NewAnilist constructs new Anilist client
 func NewAnilist(options AnilistOptions) Anilist {
-	return Anilist{options: options}
+	var accessToken string
+	found, err := options.AccessTokenStore.Get(anilistStoreAccessCodeStoreKey, &accessToken)
+
+	anilist := Anilist{options: options}
+
+	if err == nil && found {
+		anilist.accessToken = accessToken
+	}
+
+	return anilist
 }
 
 // GetByID gets anilist manga by its id
@@ -194,7 +203,7 @@ func sendRequest[Data any](
 		return data, err
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, anilistUrlApi, bytes.NewReader(marshalled))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, anilistAPIURL, bytes.NewReader(marshalled))
 	if err != nil {
 		return data, err
 	}
@@ -355,14 +364,14 @@ func (a *Anilist) BindTitleWithID(title string, anilistMangaId int) error {
 	return nil
 }
 
-func (a *Anilist) SetProgress(ctx context.Context, id, progress int) error {
+func (a *Anilist) SetMangaProgress(ctx context.Context, mangaID, chapterNumber int) error {
 	if !a.IsAuthorized() {
 		return AnilistError{errors.New("not authorized")}
 	}
 
 	_, err := sendRequest[struct {
 		SaveMediaListEntry struct {
-			ID int `json:"ID"`
+			ID int `json:"id"`
 		} `json:"SaveMediaListEntry"`
 	}](
 		ctx,
@@ -370,8 +379,8 @@ func (a *Anilist) SetProgress(ctx context.Context, id, progress int) error {
 		anilistRequestBody{
 			Query: anilistMutationSaveProgress,
 			Variables: map[string]any{
-				"id":       id,
-				"progress": progress,
+				"id":       mangaID,
+				"progress": chapterNumber,
 			},
 		},
 	)

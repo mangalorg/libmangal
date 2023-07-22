@@ -340,9 +340,15 @@ func (c *Client) readChapter(ctx context.Context, path string, chapter Chapter, 
 
 func (c *Client) markChapterAsRead(ctx context.Context, chapter Chapter) error {
 	chapterMangaInfo := chapter.Volume().Manga().Info()
-	titleToSearch := chapterMangaInfo.AnilistSearch
-	if titleToSearch == "" {
-		titleToSearch = chapterMangaInfo.Title
+
+	var titleToSearch string
+
+	if title := chapterMangaInfo.AnilistSearch; title != "" {
+		titleToSearch = title
+	} else if title := chapterMangaInfo.Title; title != "" {
+		titleToSearch = title
+	} else {
+		return fmt.Errorf("can't find title for chapter %q", chapter)
 	}
 
 	manga, ok, err := c.Anilist().FindClosestManga(ctx, titleToSearch)
@@ -355,7 +361,7 @@ func (c *Client) markChapterAsRead(ctx context.Context, chapter Chapter) error {
 	}
 
 	progress := int(math.Trunc(float64(chapter.Info().Number)))
-	return c.Anilist().SetProgress(ctx, manga.ID, progress)
+	return c.Anilist().SetMangaProgress(ctx, manga.ID, progress)
 }
 
 // savePDF saves pages in FormatPDF

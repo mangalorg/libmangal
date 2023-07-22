@@ -130,9 +130,10 @@ func DefaultAnilistOptions() AnilistOptions {
 
 		HTTPClient: &http.Client{},
 
-		QueryToIDsStore: syncmap.NewStore(syncmap.DefaultOptions),
-		TitleToIDStore:  syncmap.NewStore(syncmap.DefaultOptions),
-		IDToMangaStore:  syncmap.NewStore(syncmap.DefaultOptions),
+		QueryToIDsStore:  syncmap.NewStore(syncmap.DefaultOptions),
+		TitleToIDStore:   syncmap.NewStore(syncmap.DefaultOptions),
+		IDToMangaStore:   syncmap.NewStore(syncmap.DefaultOptions),
+		AccessTokenStore: syncmap.NewStore(syncmap.DefaultOptions),
 	}
 }
 

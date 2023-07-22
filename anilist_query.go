@@ -82,6 +82,6 @@ query ($id: Int) {
 const anilistMutationSaveProgress = `
 mutation ($id: Int, $progress: Int) {
 	SaveMediaListEntry (mediaId: $id, progress: $progress, status: CURRENT) {
-		ID
+		id
 	}
 }`
