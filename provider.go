@@ -9,6 +9,9 @@ import (
 
 // ProviderInfo is the passport of the provider
 type ProviderInfo struct {
+	// ID is the unique identifier of the provider
+	ID string `json:"id"`
+
 	// Name is the non-empty name of the provider
 	Name string `json:"name"`
 
@@ -31,6 +34,10 @@ type ProviderInfo struct {
 // This means that ProviderInfo.Name is non-empty
 // and ProviderInfo.Version is a valid semver
 func (p ProviderInfo) Validate() error {
+	if p.ID == "" {
+		return errors.New("ID must be non-empty")
+	}
+
 	if p.Name == "" {
 		return errors.New("name must be non-empty")
 	}
