@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"golang.org/x/mod/semver"
 )
 
@@ -70,51 +71,46 @@ type Provider interface {
 	// Info information about Provider
 	Info() ProviderInfo
 
+	// SetLogger sets logger to use for this provider
+	SetLogger(*Logger)
+
 	// SearchMangas searches for mangas with the given query.
 	//
-	// Implementation should utilize given LogFunc
+	// Implementation should utilize given logger
 	SearchMangas(
 		ctx context.Context,
-		log LogFunc,
 		query string,
 	) ([]Manga, error)
 
 	// MangaVolumes gets volumes of the manga
 	//
-	// Implementation should utilize given LogFunc
+	// Implementation should utilize given logger
 	MangaVolumes(
 		ctx context.Context,
-		log LogFunc,
 		manga Manga,
 	) ([]Volume, error)
 
 	// VolumeChapters gets chapters of the given volume.
 	//
-	// Implementation should utilize given LogFunc
+	// Implementation should utilize given logger
 	VolumeChapters(
 		ctx context.Context,
-		log LogFunc,
 		volume Volume,
 	) ([]Chapter, error)
 
 	// ChapterPages gets pages of the given chapter.
 	//
-	// Implementation should utilize given LogFunc
+	// Implementation should utilize given logger
 	ChapterPages(
 		ctx context.Context,
-		log LogFunc,
 		chapter Chapter,
 	) ([]Page, error)
 
 	// GetPageImage gets raw image contents of the given page.
 	//
-	// Implementation should utilize given LogFunc
+	// Implementation should utilize given loggger
 	GetPageImage(
 		ctx context.Context,
-		log LogFunc,
 		page Page,
 	) ([]byte, error)
 }
-
-// LogFunc is the function used for tracking progress of various operations
-type LogFunc = func(msg string)

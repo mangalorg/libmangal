@@ -3,6 +3,7 @@ package libmangal
 import (
 	"context"
 	"fmt"
+
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 )
@@ -15,7 +16,9 @@ func NewClient(
 	loader ProviderLoader,
 	options ClientOptions,
 ) (*Client, error) {
-	if err := loader.Info().Validate(); err != nil {
+	providerInfo := loader.Info()
+
+	if err := providerInfo.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -24,9 +27,14 @@ func NewClient(
 		return nil, err
 	}
 
+	logger := NewLogger()
+	logger.SetPrefix(providerInfo.Name)
+	provider.SetLogger(logger)
+
 	return &Client{
 		provider: provider,
 		options:  options,
+		logger:   logger,
 	}, nil
 }
 
@@ -35,6 +43,7 @@ func NewClient(
 type Client struct {
 	provider Provider
 	options  ClientOptions
+	logger   *Logger
 }
 
 func (c *Client) FS() afero.Fs {
@@ -45,28 +54,28 @@ func (c *Client) Anilist() *Anilist {
 	return c.options.Anilist
 }
 
-func (c *Client) SetLogFunc(log LogFunc) {
-	c.options.Log = log
+func (c *Client) Logger() *Logger {
+	return c.logger
 }
 
 // SearchMangas searches for mangas with the given query
 func (c *Client) SearchMangas(ctx context.Context, query string) ([]Manga, error) {
-	return c.provider.SearchMangas(ctx, c.options.Log, query)
+	return c.provider.SearchMangas(ctx, query)
 }
 
 // MangaVolumes gets chapters of the given manga
 func (c *Client) MangaVolumes(ctx context.Context, manga Manga) ([]Volume, error) {
-	return c.provider.MangaVolumes(ctx, c.options.Log, manga)
+	return c.provider.MangaVolumes(ctx, manga)
 }
 
 // VolumeChapters gets chapters of the given manga
 func (c *Client) VolumeChapters(ctx context.Context, volume Volume) ([]Chapter, error) {
-	return c.provider.VolumeChapters(ctx, c.options.Log, volume)
+	return c.provider.VolumeChapters(ctx, volume)
 }
 
 // ChapterPages gets pages of the given chapter
 func (c *Client) ChapterPages(ctx context.Context, chapter Chapter) ([]Page, error) {
-	return c.provider.ChapterPages(ctx, c.options.Log, chapter)
+	return c.provider.ChapterPages(ctx, chapter)
 }
 
 func (c *Client) String() string {
@@ -87,11 +96,12 @@ func (c *Client) DownloadChapter(
 	chapter Chapter,
 	options DownloadOptions,
 ) (string, error) {
-	c.options.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter, options.Format))
+	c.logger.Log(fmt.Sprintf("Downloading chapter %q as %s", chapter, options.Format))
 
 	tmpClient := Client{
 		provider: c.provider,
 		options:  c.options,
+		logger:   c.logger,
 	}
 
 	tmpClient.options.FS = afero.NewMemMapFs()
@@ -111,7 +121,7 @@ func (c *Client) DownloadChapter(
 	}
 
 	if options.ReadAfter {
-		return path, c.readChapter(ctx, path, chapter, options.ReadIncognito)
+		return path, c.ReadChapter(ctx, path, chapter, options.ReadIncognito)
 	}
 
 	return path, nil
@@ -125,9 +135,9 @@ func (c *Client) DownloadPagesInBatch(
 	ctx context.Context,
 	pages []Page,
 ) ([]PageWithImage, error) {
-	c.options.Log(fmt.Sprintf("Downloading %d pages", len(pages)))
+	c.logger.Log(fmt.Sprintf("Downloading %d pages", len(pages)))
 
-	g, _ := errgroup.WithContext(ctx)
+	g, ctx := errgroup.WithContext(ctx)
 
 	downloadedPages := make([]PageWithImage, len(pages))
 
@@ -135,16 +145,16 @@ func (c *Client) DownloadPagesInBatch(
 		// https://github.com/golang/go/wiki/CommonMistakes#using-goroutines-on-loop-iterator-variables
 		i, page := i, page
 		g.Go(func() error {
-			c.options.Log(fmt.Sprintf("Page #%03d: downloading", i+1))
+			c.logger.Log(fmt.Sprintf("Page #%03d: downloading", i+1))
+
 			downloaded, err := c.DownloadPage(ctx, page)
 			if err != nil {
 				return err
 			}
 
-			c.options.Log(fmt.Sprintf("Page #%03d: done", i+1))
+			c.logger.Log(fmt.Sprintf("Page #%03d: done", i+1))
 
 			downloadedPages[i] = downloaded
-
 			return nil
 		})
 	}
@@ -162,7 +172,7 @@ func (c *Client) DownloadPage(ctx context.Context, page Page) (PageWithImage, er
 		return withImage, nil
 	}
 
-	image, err := c.provider.GetPageImage(ctx, c.options.Log, page)
+	image, err := c.provider.GetPageImage(ctx, page)
 	if err != nil {
 		return nil, err
 	}

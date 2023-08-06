@@ -2,10 +2,11 @@ package libmangal
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/philippgille/gokv"
 	"github.com/philippgille/gokv/syncmap"
 	"github.com/spf13/afero"
-	"net/http"
 )
 
 // DownloadOptions configures Chapter downloading
@@ -119,14 +120,14 @@ type AnilistOptions struct {
 
 	AccessTokenStore gokv.Store
 
-	// Log logs progress
-	Log LogFunc
+	// LogWriter used for logs progress
+	Logger *Logger
 }
 
 // DefaultAnilistOptions constructs default AnilistOptions
 func DefaultAnilistOptions() AnilistOptions {
 	return AnilistOptions{
-		Log: func(string) {},
+		Logger: NewLogger(),
 
 		HTTPClient: &http.Client{},
 
@@ -167,10 +168,6 @@ type ClientOptions struct {
 		chapter Chapter,
 	) string
 
-	// Log is a function that will be passed to the provider
-	// to serve as a progress writer
-	Log LogFunc
-
 	// Anilist is the Anilist client to use
 	Anilist *Anilist
 }
@@ -192,7 +189,6 @@ func DefaultClientOptions() ClientOptions {
 		VolumeNameTemplate: func(_ string, volume Volume) string {
 			return sanitizePath(fmt.Sprintf("Vol. %d", volume.Info().Number))
 		},
-		Log:     func(string) {},
 		Anilist: &anilist,
 	}
 }

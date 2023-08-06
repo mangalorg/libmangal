@@ -24,7 +24,7 @@ func (a *Anilist) Authorize(
 	ctx context.Context,
 	credentials AnilistLoginCredentials,
 ) error {
-	a.options.Log("logging in to Anilist")
+	a.logger.Log("logging in to Anilist")
 
 	for _, t := range []struct {
 		name  string
