@@ -9,6 +9,21 @@ import (
 	"github.com/spf13/afero"
 )
 
+type ReadOptions struct {
+	// SaveHistory will save chapter to local history if ReadAfter is enabled.
+	SaveHistory bool
+
+	// ReadIncognito will save Anilist reading history if ReadAfter is enabled and logged in to the Anilist.
+	SaveAnilist bool
+}
+
+func DefaultReadOptions() ReadOptions {
+	return ReadOptions{
+		SaveHistory: false,
+		SaveAnilist: false,
+	}
+}
+
 // DownloadOptions configures Chapter downloading
 type DownloadOptions struct {
 	// Format in which a chapter must be downloaded
@@ -61,8 +76,7 @@ type DownloadOptions struct {
 	// in order for os to open it.
 	ReadAfter bool
 
-	// ReadIncognito won't sync Anilist reading history if ReadAfter is enabled.
-	ReadIncognito bool
+	ReadOptions ReadOptions
 
 	// ComicInfoXMLOptions options to use for ComicInfo.xml when WriteComicInfoXml is true
 	ComicInfoXMLOptions ComicInfoXMLOptions
@@ -87,10 +101,10 @@ func DefaultDownloadOptions() DownloadOptions {
 		WriteSeriesJson:     false,
 		WriteComicInfoXml:   false,
 		ReadAfter:           false,
-		ReadIncognito:       false,
 		ImageTransformer: func(img []byte) ([]byte, error) {
 			return img, nil
 		},
+		ReadOptions:         DefaultReadOptions(),
 		ComicInfoXMLOptions: DefaultComicInfoOptions(),
 	}
 }

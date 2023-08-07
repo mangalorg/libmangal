@@ -19,6 +19,10 @@ type AnilistLoginCredentials struct {
 // It's needed, since the KV interface always expects a key to be passed.
 const anilistStoreAccessCodeStoreKey = "hi"
 
+func (a *Anilist) Logout() error {
+	return a.options.AccessTokenStore.Delete(anilistStoreAccessCodeStoreKey)
+}
+
 // Authorize will obtain Anilist token for API requests
 func (a *Anilist) Authorize(
 	ctx context.Context,

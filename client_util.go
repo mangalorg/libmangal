@@ -323,7 +323,7 @@ func (c *Client) getComicInfoXML(
 	return chapterWithAnilist.ComicInfoXML(), nil
 }
 
-func (c *Client) ReadChapter(ctx context.Context, path string, chapter Chapter, incognito bool) error {
+func (c *Client) ReadChapter(ctx context.Context, path string, chapter Chapter, options ReadOptions) error {
 	c.logger.Log("Opening chapter with the default app")
 
 	err := open.Run(path)
@@ -331,9 +331,11 @@ func (c *Client) ReadChapter(ctx context.Context, path string, chapter Chapter, 
 		return err
 	}
 
-	if c.Anilist().IsAuthorized() && !incognito {
+	if options.SaveAnilist && c.Anilist().IsAuthorized() {
 		return c.markChapterAsRead(ctx, chapter)
 	}
+
+	// TODO: save to local history
 
 	return nil
 }

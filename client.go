@@ -121,7 +121,7 @@ func (c *Client) DownloadChapter(
 	}
 
 	if options.ReadAfter {
-		return path, c.ReadChapter(ctx, path, chapter, options.ReadIncognito)
+		return path, c.ReadChapter(ctx, path, chapter, options.ReadOptions)
 	}
 
 	return path, nil
