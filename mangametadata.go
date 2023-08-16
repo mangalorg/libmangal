@@ -3,7 +3,6 @@ package libmangal
 import (
 	"encoding/json"
 	"encoding/xml"
-	"fmt"
 	"strings"
 )
 
@@ -139,7 +138,7 @@ func (c ComicInfoXML) wrapper(options ComicInfoXMLOptions) comicInfoXMLWrapper {
 		Notes: strings.Join([]string{
 			c.Notes,
 			"",
-			fmt.Sprintf("Downloaded with libmangal/%s", Version),
+			"Downloaded with libmangal",
 			"https://github.com/mangalorg/libmangal",
 		}, "\n"),
 		Manga:           "YesAndRightToLeft",

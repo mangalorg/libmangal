@@ -58,6 +58,10 @@ func (c *Client) Logger() *Logger {
 	return c.logger
 }
 
+func (c *Client) Close() error {
+	return c.provider.Close()
+}
+
 // SearchMangas searches for mangas with the given query
 func (c *Client) SearchMangas(ctx context.Context, query string) ([]Manga, error) {
 	return c.provider.SearchMangas(ctx, query)

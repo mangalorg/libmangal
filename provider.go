@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"golang.org/x/mod/semver"
 )
@@ -67,6 +68,7 @@ type ProviderLoader interface {
 // Provider exposes methods for searching mangas, getting chapters, pages and images
 type Provider interface {
 	fmt.Stringer
+	io.Closer
 
 	// Info information about Provider
 	Info() ProviderInfo
